@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+{% block title %}Set New PIN{% endblock %}
+
+{% block nav %}
+<nav class="border-b border-gray-800 px-6 py-4 flex items-center">
+  <div class="flex items-center gap-3">
+    <div class="w-10 h-10 rounded-lg bg-brand flex items-center justify-center font-bold text-white text-base">DC</div>
+    <span class="font-semibold text-xl tracking-tight">DataCapture</span>
+    <span class="text-sm text-gray-500 border border-gray-700 rounded px-2 py-0.5">CY26</span>
+  </div>
+</nav>
+{% endblock %}
+
+{% block main_class %}flex items-center justify-center px-4 py-8{% endblock %}
+
+{% block content %}
+<div class="w-full max-w-md">
+
+  <div class="text-center mb-8">
+    <div class="w-16 h-16 rounded-full bg-yellow-500/10 border border-yellow-500/30 flex items-center justify-center mx-auto mb-4">
+      <svg class="w-8 h-8 text-yellow-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round"
+          d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+      </svg>
+    </div>
+    <h1 class="text-3xl font-bold tracking-tight">Set your PIN</h1>
+    <p class="text-gray-400 mt-2">Choose a new PIN before continuing</p>
+  </div>
+
+  <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+
+    <div id="error-banner"
+      class="hidden mb-5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-base px-5 py-4"></div>
+
+    <!-- Step indicator -->
+    <p id="step-label" class="text-center text-base text-gray-400 mb-4">Enter new PIN</p>
+
+    <!-- PIN dots -->
+    <div class="flex gap-3 justify-center mb-5">
+      <span class="w-5 h-5 rounded-full border-2 border-gray-600" id="dot-0"></span>
+      <span class="w-5 h-5 rounded-full border-2 border-gray-600" id="dot-1"></span>
+      <span class="w-5 h-5 rounded-full border-2 border-gray-600" id="dot-2"></span>
+      <span class="w-5 h-5 rounded-full border-2 border-gray-600" id="dot-3"></span>
+      <span class="w-5 h-5 rounded-full border-2 border-gray-600 hidden" id="dot-4"></span>
+      <span class="w-5 h-5 rounded-full border-2 border-gray-600 hidden" id="dot-5"></span>
+    </div>
+
+    <!-- PIN Pad -->
+    <div class="grid grid-cols-3 gap-3 mb-5">
+      {% for n in "123456789" %}
+      <button type="button" data-digit="{{ n }}"
+        class="pin-btn bg-gray-800 hover:bg-gray-700 active:bg-gray-600 active:scale-95
+               rounded-xl text-2xl font-semibold text-white py-5 transition select-none">
+        {{ n }}
+      </button>
+      {% endfor %}
+      <button type="button" id="pin-clear"
+        class="bg-gray-800 hover:bg-red-900/40 active:scale-95 rounded-xl text-base font-medium text-gray-400 py-5 transition select-none">
+        CLR
+      </button>
+      <button type="button" data-digit="0"
+        class="pin-btn bg-gray-800 hover:bg-gray-700 active:bg-gray-600 active:scale-95
+               rounded-xl text-2xl font-semibold text-white py-5 transition select-none">
+        0
+      </button>
+      <button type="button" id="pin-back"
+        class="bg-gray-800 hover:bg-gray-700 active:scale-95 rounded-xl text-2xl text-gray-400 py-5 transition select-none">
+        ⌫
+      </button>
+    </div>
+
+    <button id="submit-btn" type="button"
+      class="w-full bg-brand hover:bg-brand-dark active:scale-95 transition text-white font-bold rounded-xl py-5 text-xl">
+      Continue
+    </button>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const userId = sessionStorage.getItem('dc_pending_user_id');
+  if (!userId) window.location.href = '/login/';
+
+  const MAX = 6;
+  let step = 1;   // 1 = enter new PIN, 2 = confirm PIN
+  let newPin = '';
+  let currentPin = '';
+
+  const stepLabel = document.getElementById('step-label');
+  const errorBanner = document.getElementById('error-banner');
+  const submitBtn = document.getElementById('submit-btn');
+
+  function updateDots() {
+    for (let i = 0; i < MAX; i++) {
+      const dot = document.getElementById(`dot-${i}`);
+      if (!dot) continue;
+      if (i < 4) {
+        dot.classList.toggle('bg-brand', i < currentPin.length);
+        dot.classList.toggle('border-brand', i < currentPin.length);
+        dot.classList.toggle('border-gray-600', i >= currentPin.length);
+      } else {
+        dot.classList.toggle('hidden', currentPin.length <= 4);
+        dot.classList.toggle('bg-brand', i < currentPin.length);
+        dot.classList.toggle('border-brand', i < currentPin.length);
+      }
+    }
+  }
+
+  document.querySelectorAll('.pin-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (currentPin.length < MAX) { currentPin += btn.dataset.digit; updateDots(); }
+    });
+  });
+  document.getElementById('pin-back').addEventListener('click', () => { currentPin = currentPin.slice(0, -1); updateDots(); });
+  document.getElementById('pin-clear').addEventListener('click', () => { currentPin = ''; updateDots(); });
+
+  function showError(msg) {
+    errorBanner.textContent = msg;
+    errorBanner.classList.remove('hidden');
+  }
+
+  function setLoading(loading) {
+    submitBtn.disabled = loading;
+    submitBtn.textContent = loading ? 'Saving…' : (step === 1 ? 'Continue' : 'Set PIN & Sign In');
+    submitBtn.classList.toggle('opacity-60', loading);
+  }
+
+  submitBtn.addEventListener('click', async () => {
+    errorBanner.classList.add('hidden');
+
+    if (currentPin.length < 4) { showError('PIN must be at least 4 digits.'); return; }
+
+    if (step === 1) {
+      newPin = currentPin;
+      currentPin = '';
+      step = 2;
+      stepLabel.textContent = 'Confirm new PIN';
+      submitBtn.textContent = 'Set PIN & Sign In';
+      updateDots();
+      return;
+    }
+
+    // Step 2 — confirm
+    if (currentPin !== newPin) {
+      showError('PINs do not match. Please try again.');
+      newPin = ''; currentPin = ''; step = 1;
+      stepLabel.textContent = 'Enter new PIN';
+      submitBtn.textContent = 'Continue';
+      updateDots();
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch('/api/accounts/change-pin/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userId, new_pin: newPin }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showError(data.error || 'Something went wrong.'); return; }
+
+      sessionStorage.removeItem('dc_pending_user_id');
+      localStorage.setItem('dc_token', data.access_token);
+      localStorage.setItem('dc_user', JSON.stringify(data.user));
+      window.location.href = '/dashboard/';
+    } catch (_) {
+      showError('Network error. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  });
+</script>
+{% endblock %}

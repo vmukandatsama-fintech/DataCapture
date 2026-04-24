@@ -1,22 +1,42 @@
 {% extends "admin/base_site.html" %}
 
+{% block title %}Import Users (CSV){% endblock %}
+
 {% block content %}
-<h2>Import Users (CSV)</h2>
+<div class="mb-6">
+  <h1 class="text-2xl font-semibold mb-1">Import Users from CSV</h1>
+  <p class="text-sm text-gray-500 dark:text-gray-400">Bulk-create user accounts. All imported users will be required to change their PIN on first login.</p>
+</div>
 
-<form method="post" enctype="multipart/form-data">
+<div class="card mb-6">
+  <form method="post" enctype="multipart/form-data">
     {% csrf_token %}
-    {{ form.as_p }}
-    <button type="submit" class="default">Upload</button>
-</form>
+    <div class="p-6 flex flex-col gap-4">
+      <div>
+        <label class="block text-sm font-medium mb-1" for="{{ form.csv_file.id_for_label }}">CSV File</label>
+        {{ form.csv_file }}
+        {% if form.csv_file.errors %}
+          <p class="text-red-500 text-sm mt-1">{{ form.csv_file.errors }}</p>
+        {% endif %}
+      </div>
+      <div class="flex items-center gap-4 pt-2">
+        <button type="submit" class="button">Import Users</button>
+        <a href="../" class="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">Cancel</a>
+      </div>
+    </div>
+  </form>
+</div>
 
-<br>
-
-<p><strong>CSV format:</strong></p>
-<pre>
-username,role,pin
+<div class="card">
+  <div class="p-6">
+    <h2 class="text-base font-semibold mb-3">CSV format</h2>
+    <pre class="text-xs bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded p-4">username,role,pin
 capturer1,capturer,1234
 capturer2,capturer,1234
-supervisor1,supervisor,1234
-</pre>
-
+supervisor1,supervisor,1234</pre>
+    <p class="text-sm text-gray-500 dark:text-gray-400 mt-3">
+      Valid roles: <code>capturer</code>, <code>supervisor</code>, <code>admin</code>
+    </p>
+  </div>
+</div>
 {% endblock %}

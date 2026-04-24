@@ -1,4 +1,5 @@
 from pathlib import Path
+from datetime import timedelta
 
 # -----------------------------
 # BASE DIRECTORY
@@ -18,6 +19,9 @@ ALLOWED_HOSTS = []
 # APPLICATIONS
 # -----------------------------
 INSTALLED_APPS = [
+    'unfold',
+    'unfold.contrib.filters',
+    'unfold.contrib.forms',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -54,7 +58,7 @@ TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
 
-        # 🔥 THIS IS THE FIX
+        # 🔥 Enables global templates if needed
         'DIRS': [BASE_DIR / 'templates'],
 
         'APP_DIRS': True,
@@ -130,3 +134,90 @@ STATIC_URL = 'static/'
 # DEFAULT PRIMARY KEY
 # -----------------------------
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+# =========================================================
+# 🔐 DJANGO REST FRAMEWORK + JWT AUTHENTICATION
+# =========================================================
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ),
+    "DEFAULT_PERMISSION_CLASSES": (
+        "rest_framework.permissions.IsAuthenticated",
+    ),
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 25,
+}
+
+# -----------------------------
+# JWT SETTINGS
+# -----------------------------
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=8),
+    "AUTH_HEADER_TYPES": ("Bearer",),
+}
+
+# -----------------------------
+# DJANGO UNFOLD ADMIN
+# -----------------------------
+UNFOLD = {
+    "SITE_TITLE": "DataCapture",
+    "SITE_HEADER": "DataCapture — CY26",
+    "SITE_URL": "/",
+    "SITE_SYMBOL": "database",
+    "SHOW_HISTORY": True,
+    "SHOW_VIEW_ON_SITE": False,
+    "COLORS": {
+        "font": {
+            "subtle-light": "107 114 128",
+            "subtle-dark": "156 163 175",
+            "default-light": "17 24 39",
+            "default-dark": "243 244 246",
+            "important-light": "0 0 0",
+            "important-dark": "255 255 255",
+        },
+        "primary": {
+            "50":  "240 253 244",
+            "100": "220 252 231",
+            "200": "187 247 208",
+            "300": "134 239 172",
+            "400": "74 222 128",
+            "500": "34 197 94",
+            "600": "22 163 74",
+            "700": "21 128 61",
+            "800": "22 101 52",
+            "900": "20 83 45",
+            "950": "5 46 22",
+        },
+    },
+    "SIDEBAR": {
+        "show_search": True,
+        "show_all_applications": False,
+        "navigation": [
+            {
+                "title": "Growers",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "Growers",
+                        "icon": "person",
+                        "link": "/admin/accounts/grower/",
+                    },
+                ],
+            },
+            {
+                "title": "Users",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "Users",
+                        "icon": "manage_accounts",
+                        "link": "/admin/accounts/user/",
+                    },
+                ],
+            },
+        ],
+    },
+}

@@ -16,8 +16,45 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.shortcuts import render
+from datetime import date
+
+
+def _ctx():
+    return {'year': date.today().year}
+
+
+def home(request):
+    return render(request, 'home.html', _ctx())
+
+
+def login_page(request):
+    return render(request, 'auth/login.html', _ctx())
+
+
+def change_pin_page(request):
+    return render(request, 'auth/change_pin.html', _ctx())
+
+
+def dashboard(request):
+    return render(request, 'dashboard.html', _ctx())
+
+
+def growers_list(request):
+    return render(request, 'growers/list.html', _ctx())
+
+
+def grower_detail(request, grower_id):
+    return render(request, 'growers/detail.html', _ctx())
+
 
 urlpatterns = [
+    path('', home, name='home'),
+    path('login/', login_page, name='login'),
+    path('change-pin/', change_pin_page, name='change-pin'),
+    path('dashboard/', dashboard, name='dashboard'),
+    path('growers/', growers_list, name='growers'),
+    path('growers/<str:grower_id>/', grower_detail, name='grower-detail'),
     path('admin/', admin.site.urls),
     path('api/accounts/', include('accounts.urls')),
 ]

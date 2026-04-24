@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+{% block title %}Grower Detail{% endblock %}
+
+{% block main_class %}p-4{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+
+  <div class="flex items-center justify-between mb-5">
+    <a href="/growers/"
+      class="min-h-touch px-5 flex items-center text-sm text-gray-300 hover:text-white border border-gray-700 rounded-xl transition">
+      &larr; Grower List
+    </a>
+  </div>
+
+  <!-- Loading / error state -->
+  <div id="loading" class="text-center py-20 text-gray-500 text-lg">Loading…</div>
+  <div id="error" class="hidden text-center py-20 text-red-400 text-lg"></div>
+
+  <!-- Profile -->
+  <div id="profile" class="hidden">
+
+    <!-- Header card -->
+    <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 mb-5 flex flex-col sm:flex-row sm:items-center gap-5">
+      <div class="w-16 h-16 rounded-xl bg-brand/10 border border-brand/20 flex items-center justify-center shrink-0">
+        <svg class="w-8 h-8 text-brand" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round"
+            d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+        </svg>
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="flex flex-wrap items-center gap-2 mb-2">
+          <h1 class="text-2xl font-bold text-white" id="d-name"></h1>
+          <span class="text-sm border rounded-lg px-3 py-1" id="d-scheme-badge"></span>
+          <span class="text-sm rounded-lg px-3 py-1" id="d-status-badge"></span>
+        </div>
+        <div class="text-base font-mono text-brand" id="d-grower-id"></div>
+      </div>
+      <div class="text-right shrink-0">
+        <div class="text-3xl font-bold text-gray-200" id="d-ha"></div>
+        <div class="text-sm text-gray-500 mt-1">CY26 Hectares</div>
+      </div>
+    </div>
+
+    <!-- Detail grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+      <!-- Identity -->
+      <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+        <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-5">Identity</h2>
+        <dl class="space-y-3" id="d-identity"></dl>
+      </div>
+
+      <!-- Area & Group -->
+      <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+        <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-5">Area &amp; Group</h2>
+        <dl class="space-y-3" id="d-area"></dl>
+      </div>
+
+      <!-- Personnel -->
+      <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+        <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-5">Personnel</h2>
+        <dl class="space-y-3" id="d-personnel"></dl>
+      </div>
+
+      <!-- Classification -->
+      <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+        <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-5">Classification</h2>
+        <dl class="space-y-3" id="d-classification"></dl>
+      </div>
+
+      <!-- Financial -->
+      <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+        <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-widest mb-5">TIMB &amp; Financial</h2>
+        <dl class="space-y-3" id="d-financial"></dl>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const token = localStorage.getItem('dc_token');
+  if (!token) window.location.href = '/login/';
+
+  const growerId = window.location.pathname.split('/').filter(Boolean).pop();
+
+  function field(label, value) {
+    const v = value ?? '—';
+    return `
+      <div class="flex justify-between gap-4 py-0.5">
+        <dt class="text-sm text-gray-500 shrink-0">${label}</dt>
+        <dd class="text-base text-gray-100 text-right font-medium">${v}</dd>
+      </div>`;
+  }
+
+  function schemeColor(scheme) {
+    const map = {
+      'A Scheme': 'bg-green-500/10 text-green-400 border-green-500/20',
+      'B Scheme': 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+      'D Scheme': 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+      'R Scheme': 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
+    };
+    return map[scheme] || 'bg-gray-500/10 text-gray-400 border-gray-500/20';
+  }
+
+  async function load() {
+    try {
+      const res = await fetch(`/api/accounts/growers/${growerId}/`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (res.status === 401) { window.location.href = '/login/'; return; }
+      if (res.status === 404) {
+        document.getElementById('loading').classList.add('hidden');
+        const err = document.getElementById('error');
+        err.textContent = `Grower "${growerId}" not found.`;
+        err.classList.remove('hidden');
+        return;
+      }
+
+      const g = await res.json();
+
+      document.title = `${g.grower_id} — DataCapture CY26`;
+      document.getElementById('d-name').textContent = g.grower_name;
+      document.getElementById('d-grower-id').textContent = g.grower_id;
+      document.getElementById('d-ha').textContent = g.cy26_ha ?? '—';
+
+      const schemeBadge = document.getElementById('d-scheme-badge');
+      schemeBadge.textContent = g.scheme;
+      schemeBadge.className = `text-xs border rounded px-2 py-0.5 ${schemeColor(g.scheme)}`;
+
+      const statusBadge = document.getElementById('d-status-badge');
+      if (g.contract_status) {
+        statusBadge.textContent = g.contract_status;
+        const s = g.contract_status.toLowerCase();
+        statusBadge.className = `text-xs rounded px-2 py-0.5 ${
+          s.includes('active') ? 'bg-green-500/10 text-green-400' :
+          s.includes('suspend') || s.includes('cancel') ? 'bg-red-500/10 text-red-400' :
+          'bg-gray-500/10 text-gray-400'
+        }`;
+      }
+
+      document.getElementById('d-identity').innerHTML =
+        field('Grower ID', g.grower_id) +
+        field('Master ID', g.master_id) +
+        field('TIMB Name', g.timb_name) +
+        field('TIMB ID', g.timb_id) +
+        field('Stop Order #', g.stop_order_number);
+
+      document.getElementById('d-area').innerHTML =
+        field('Area Code', g.area_code) +
+        field('Area', g.area) +
+        field('Group Code', g.group_code) +
+        field('Group', g.group_name);
+
+      document.getElementById('d-personnel').innerHTML =
+        field('Manager Code', g.manager_code) +
+        field('Manager', g.manager) +
+        field('Area Manager Code', g.area_manager_code) +
+        field('Area Manager', g.area_manager) +
+        field('Leaf Technician Code', g.ltech_code) +
+        field('Leaf Technician', g.ltech);
+
+      document.getElementById('d-classification').innerHTML =
+        field('Scheme', g.scheme) +
+        field('CY26 Hectares', g.cy26_ha) +
+        field('Stop Order #', g.stop_order_number) +
+        field('Contract Status', g.contract_status) +
+        field('Biometrics', g.biometrics);
+
+      document.getElementById('d-financial').innerHTML =
+        field('TIMB Stop Order Value', g.timb_stop_order_value
+          ? Number(g.timb_stop_order_value).toLocaleString(undefined, {minimumFractionDigits: 2})
+          : null) +
+        field('Contract Status', g.contract_status) +
+        field('CY26 Hectares', g.cy26_ha);
+
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('profile').classList.remove('hidden');
+
+    } catch (_) {
+      document.getElementById('loading').classList.add('hidden');
+      const err = document.getElementById('error');
+      err.textContent = 'Failed to load grower data.';
+      err.classList.remove('hidden');
+    }
+  }
+
+  load();
+</script>
+{% endblock %}

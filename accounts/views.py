@@ -1,11 +1,14 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
+from rest_framework import status, generics, filters
 from django.contrib.auth.hashers import make_password
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.exceptions import TokenError
+from django.db.models import Q
 
-from .serializers import LoginSerializer
-from .models import User
+from .serializers import LoginSerializer, GrowerListSerializer, GrowerDetailSerializer
+from .models import User, Grower
 
 
 # 🔷 LOGIN VIEW (PIN AUTH)
@@ -26,9 +29,11 @@ class LoginView(APIView):
                     "user_id": user.id
                 }, status=status.HTTP_200_OK)
 
+            refresh = RefreshToken.for_user(user)
             return Response({
                 "message": "Login successful",
                 "must_change_pin": False,
+                "access_token": str(refresh.access_token),
                 "user": {
                     "id": user.id,
                     "username": user.username,
@@ -55,9 +60,52 @@ class ChangePinView(APIView):
         except User.DoesNotExist:
             return Response({"error": "User not found"}, status=404)
 
-        # 🔥 HASH PIN (VERY IMPORTANT)
+        # Update PIN
         user.pin = make_password(new_pin)
         user.must_change_pin = False
         user.save()
 
-        return Response({"message": "PIN updated successfully"})
+        # 🔥 ISSUE TOKEN IMMEDIATELY
+        refresh = RefreshToken.for_user(user)
+
+        return Response({
+            "message": "PIN updated successfully",
+            "access_token": str(refresh.access_token),
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "role": user.role,
+            }
+        })
+
+
+class GrowerListView(generics.ListAPIView):
+    serializer_class = GrowerListSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = Grower.objects.all()
+        search = self.request.query_params.get('search', '').strip()
+        scheme = self.request.query_params.get('scheme', '').strip()
+        area_code = self.request.query_params.get('area_code', '').strip()
+        group_code = self.request.query_params.get('group_code', '').strip()
+
+        if search:
+            qs = qs.filter(
+                Q(grower_id__icontains=search) | Q(grower_name__icontains=search)
+            )
+        if scheme:
+            qs = qs.filter(scheme=scheme)
+        if area_code:
+            qs = qs.filter(area_code=area_code)
+        if group_code:
+            qs = qs.filter(group_code=group_code)
+
+        return qs
+
+
+class GrowerDetailView(generics.RetrieveAPIView):
+    serializer_class = GrowerDetailSerializer
+    permission_classes = [IsAuthenticated]
+    queryset = Grower.objects.all()
+    lookup_field = 'grower_id'

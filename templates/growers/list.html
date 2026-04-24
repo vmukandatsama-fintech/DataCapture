@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% block title %}Growers{% endblock %}
+
+{% block main_class %}p-4{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between mb-5">
+    <div>
+      <h1 class="text-2xl font-bold tracking-tight">CY26 Growers</h1>
+      <p class="text-gray-400 text-sm mt-0.5">
+        <span id="total-count" class="text-gray-300 font-medium">—</span> growers
+      </p>
+    </div>
+    <a href="/dashboard/"
+      class="min-h-touch px-5 flex items-center text-sm text-gray-300 hover:text-white border border-gray-700 rounded-xl transition">
+      &larr; Dashboard
+    </a>
+  </div>
+
+  <!-- Filters -->
+  <div class="flex flex-wrap gap-3 mb-4">
+    <input
+      id="search-input"
+      type="text"
+      inputmode="text"
+      placeholder="Search ID or name…"
+      class="bg-gray-900 border border-gray-700 rounded-xl px-5 py-3 text-base text-white placeholder-gray-500
+             focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand transition flex-1 min-w-48" />
+
+    <select id="scheme-filter"
+      class="bg-gray-900 border border-gray-700 rounded-xl px-5 py-3 text-base text-white
+             focus:outline-none focus:border-brand transition">
+      <option value="">All Schemes</option>
+      <option value="A Scheme">A Scheme</option>
+      <option value="B Scheme">B Scheme</option>
+      <option value="D Scheme">D Scheme</option>
+      <option value="R Scheme">R Scheme</option>
+    </select>
+
+    <button id="clear-btn"
+      class="hidden min-h-touch px-5 text-sm text-gray-300 hover:text-white border border-gray-700 rounded-xl transition">
+      Clear
+    </button>
+  </div>
+
+  <!-- Table -->
+  <div class="rounded-2xl border border-gray-800 overflow-hidden mb-4">
+    <div class="overflow-x-auto">
+      <table class="w-full text-base">
+        <thead>
+          <tr class="border-b border-gray-800 bg-gray-900/60">
+            <th class="text-left px-5 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Grower ID</th>
+            <th class="text-left px-5 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Name</th>
+            <th class="text-left px-5 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider">Scheme</th>
+            <th class="text-left px-5 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider hidden sm:table-cell">Area</th>
+            <th class="text-left px-5 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider hidden md:table-cell">Group</th>
+            <th class="text-left px-5 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider hidden lg:table-cell">Manager</th>
+            <th class="text-right px-5 py-4 text-xs font-semibold text-gray-400 uppercase tracking-wider hidden sm:table-cell">Ha</th>
+          </tr>
+        </thead>
+        <tbody id="grower-tbody">
+          <tr>
+            <td colspan="7" class="px-5 py-12 text-center text-gray-500">Loading…</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Pagination -->
+  <div class="flex items-center justify-between">
+    <button id="prev-btn"
+      class="min-h-touch px-6 flex items-center text-sm text-gray-300 hover:text-white border border-gray-700 rounded-xl transition disabled:opacity-30 disabled:cursor-not-allowed">
+      &larr; Previous
+    </button>
+    <span id="page-info" class="text-sm text-gray-500"></span>
+    <button id="next-btn"
+      class="min-h-touch px-6 flex items-center text-sm text-gray-300 hover:text-white border border-gray-700 rounded-xl transition disabled:opacity-30 disabled:cursor-not-allowed">
+      Next &rarr;
+    </button>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const token = localStorage.getItem('dc_token');
+  if (!token) window.location.href = '/login/';
+
+  const tbody = document.getElementById('grower-tbody');
+  const totalEl = document.getElementById('total-count');
+  const pageInfo = document.getElementById('page-info');
+  const prevBtn = document.getElementById('prev-btn');
+  const nextBtn = document.getElementById('next-btn');
+  const clearBtn = document.getElementById('clear-btn');
+
+  let currentPage = 1;
+  let totalPages = 1;
+  let searchTimer = null;
+
+  function schemeColor(scheme) {
+    const map = {
+      'A Scheme': 'bg-green-500/10 text-green-400 border-green-500/20',
+      'B Scheme': 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+      'D Scheme': 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+      'R Scheme': 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
+    };
+    return map[scheme] || 'bg-gray-500/10 text-gray-400 border-gray-500/20';
+  }
+
+  async function fetchGrowers(page = 1) {
+    const search = document.getElementById('search-input').value.trim();
+    const scheme = document.getElementById('scheme-filter').value;
+    clearBtn.classList.toggle('hidden', !search && !scheme);
+
+    const params = new URLSearchParams({ page });
+    if (search) params.set('search', search);
+    if (scheme) params.set('scheme', scheme);
+
+    tbody.innerHTML = `<tr><td colspan="7" class="px-5 py-12 text-center text-gray-500">Loading…</td></tr>`;
+
+    try {
+      const res = await fetch(`/api/accounts/growers/?${params}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.status === 401) { window.location.href = '/login/'; return; }
+
+      const data = await res.json();
+      const results = data.results ?? [];
+      const count = data.count ?? 0;
+      totalPages = Math.ceil(count / 25);
+      currentPage = page;
+
+      totalEl.textContent = count.toLocaleString();
+      pageInfo.textContent = `Page ${currentPage} of ${totalPages || 1}`;
+      prevBtn.disabled = !data.previous;
+      nextBtn.disabled = !data.next;
+
+      if (results.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="px-5 py-12 text-center text-gray-500">No growers found.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = results.map(g => `
+        <tr onclick="window.location='/growers/${g.grower_id}/'"
+          class="border-b border-gray-800/50 active:bg-gray-800/60 cursor-pointer transition">
+          <td class="px-5 py-4 font-mono text-brand text-sm">${g.grower_id}</td>
+          <td class="px-5 py-4 font-semibold text-gray-100">${g.grower_name}</td>
+          <td class="px-5 py-4">
+            <span class="text-sm border rounded-lg px-3 py-1 ${schemeColor(g.scheme)}">${g.scheme}</span>
+          </td>
+          <td class="px-5 py-4 text-gray-400 hidden sm:table-cell">${g.area}</td>
+          <td class="px-5 py-4 text-gray-400 hidden md:table-cell">${g.group_name}</td>
+          <td class="px-5 py-4 text-gray-400 hidden lg:table-cell">${g.manager}</td>
+          <td class="px-5 py-4 text-right text-gray-300 hidden sm:table-cell">${g.cy26_ha ?? '—'}</td>
+        </tr>
+      `).join('');
+
+    } catch (_) {
+      tbody.innerHTML = `<tr><td colspan="7" class="px-5 py-12 text-center text-red-400">Failed to load growers.</td></tr>`;
+    }
+  }
+
+  document.getElementById('search-input').addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => fetchGrowers(1), 400);
+  });
+  document.getElementById('scheme-filter').addEventListener('change', () => fetchGrowers(1));
+  clearBtn.addEventListener('click', () => {
+    document.getElementById('search-input').value = '';
+    document.getElementById('scheme-filter').value = '';
+    fetchGrowers(1);
+  });
+  prevBtn.addEventListener('click', () => { if (currentPage > 1) fetchGrowers(currentPage - 1); });
+  nextBtn.addEventListener('click', () => { if (currentPage < totalPages) fetchGrowers(currentPage + 1); });
+
+  fetchGrowers(1);
+</script>
+{% endblock %}

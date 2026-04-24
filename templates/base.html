@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>{% block title %}DataCapture{% endblock %} — CY26</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: { DEFAULT: '#16a34a', dark: '#15803d', light: '#dcfce7' }
+          },
+          fontSize: {
+            base: ['1.0625rem', '1.6'],
+          },
+          minHeight: {
+            touch: '48px',
+          },
+          spacing: {
+            touch: '48px',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Prevent accidental text selection on tap */
+    button, a { -webkit-tap-highlight-color: transparent; }
+    /* Ensure readable base size on tablet */
+    body { font-size: 1rem; }
+    /* Larger touch targets for all buttons/inputs */
+    button, .btn, input[type="submit"], input[type="button"], .nav-link {
+      min-height: 48px;
+      min-width: 48px;
+      font-size: 1.1rem;
+      border-radius: 0.5rem;
+      padding: 0.75rem 1.5rem;
+      transition: background 0.2s;
+    }
+    button:active, .btn:active, input[type="submit"]:active, input[type="button"]:active, .nav-link:active {
+      background: #15803d !important;
+      color: #fff !important;
+    }
+    label {
+      font-size: 1.1rem;
+      margin-bottom: 0.25rem;
+      display: block;
+    }
+    input, select, textarea {
+      font-size: 1.1rem;
+      min-height: 48px;
+      padding: 0.75rem 1rem;
+      border-radius: 0.5rem;
+    }
+    nav#main-nav a {
+      min-width: 48px;
+      min-height: 48px;
+      padding: 0.75rem 1.5rem;
+      border-radius: 0.5rem;
+      font-size: 1.1rem;
+    }
+  </style>
+  {% block head %}{% endblock %}
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen flex flex-col touch-manipulation">
+
+  {% block nav %}
+  <nav class="border-b border-gray-800 px-5 py-3 flex items-center justify-between" id="main-nav">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-lg bg-brand flex items-center justify-center font-bold text-white text-base shrink-0">DC</div>
+      <span class="font-semibold text-lg tracking-tight">DataCapture</span>
+      <span class="text-sm text-gray-500 border border-gray-700 rounded px-2 py-0.5 hidden sm:inline">CY26</span>
+    </div>
+    <div class="flex items-center gap-3" id="nav-user-area">
+      <span class="text-sm text-gray-400 hidden sm:inline" id="nav-username"></span>
+      <span class="text-xs border border-gray-700 rounded px-2 py-1 text-gray-400 capitalize hidden sm:inline" id="nav-role"></span>
+      <a href="/admin/" id="nav-admin-link"
+        class="hidden min-h-touch px-4 flex items-center text-sm text-gray-300 hover:text-white border border-gray-700 hover:border-gray-500 rounded-lg transition">
+        Admin
+      </a>
+      <button onclick="logout()" id="nav-logout"
+        class="hidden min-h-touch px-4 flex items-center text-sm text-gray-300 hover:text-white border border-gray-700 hover:border-gray-500 rounded-lg transition">
+        Sign out
+      </button>
+    </div>
+  </nav>
+  {% endblock %}
+
+  <main class="flex-1 {% block main_class %}{% endblock %}">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="border-t border-gray-800 px-6 py-3 text-center text-xs text-gray-600">
+    DataCapture &copy; {{ year }} &mdash; Internal use only
+  </footer>
+
+  <script>
+    function logout() {
+      localStorage.removeItem('dc_token');
+      localStorage.removeItem('dc_user');
+      window.location.href = '/login/';
+    }
+
+    function loadNavUser() {
+      const raw = localStorage.getItem('dc_user');
+      if (!raw) return;
+      try {
+        const user = JSON.parse(raw);
+        const usernameEl = document.getElementById('nav-username');
+        const roleEl = document.getElementById('nav-role');
+        const logoutBtn = document.getElementById('nav-logout');
+        const adminLink = document.getElementById('nav-admin-link');
+        if (usernameEl) usernameEl.textContent = user.username;
+        if (roleEl) roleEl.textContent = user.role;
+        if (logoutBtn) logoutBtn.classList.remove('hidden');
+        if (adminLink && user.role === 'admin') adminLink.classList.remove('hidden');
+      } catch (_) {}
+    }
+
+    document.addEventListener('DOMContentLoaded', loadNavUser);
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

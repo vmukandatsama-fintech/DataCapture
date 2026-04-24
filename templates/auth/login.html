@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% block title %}Sign In{% endblock %}
+
+{% block nav %}
+<nav class="border-b border-gray-800 px-6 py-4 flex items-center justify-between">
+  <div class="flex items-center gap-3">
+    <div class="w-10 h-10 rounded-lg bg-brand flex items-center justify-center font-bold text-white text-base">DC</div>
+    <span class="font-semibold text-xl tracking-tight">DataCapture</span>
+    <span class="text-sm text-gray-500 border border-gray-700 rounded px-2 py-0.5">CY26</span>
+  </div>
+  <a href="/admin/"
+    class="text-base text-gray-400 hover:text-white border border-gray-700 hover:border-gray-500 rounded px-4 py-2 transition">
+    Admin
+  </a>
+</nav>
+{% endblock %}
+
+{% block main_class %}flex items-center justify-center px-4 py-8{% endblock %}
+
+{% block content %}
+<div class="w-full max-w-md">
+
+  <div class="text-center mb-8">
+    <h1 class="text-3xl font-bold tracking-tight">Sign in</h1>
+    <p class="text-gray-400 mt-2">Enter your username and PIN</p>
+  </div>
+
+  <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+
+    <div id="error-banner"
+      class="hidden mb-5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-base px-5 py-4"></div>
+
+    <!-- Username -->
+    <div class="mb-6">
+      <label class="block text-base font-medium text-gray-300 mb-2" for="username">Username</label>
+      <input
+        id="username"
+        type="text"
+        autocomplete="username"
+        autocorrect="off"
+        autocapitalize="none"
+        class="w-full bg-gray-800 border border-gray-700 rounded-xl px-5 py-4 text-xl text-white placeholder-gray-500
+               focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand transition"
+        placeholder="Enter username" />
+    </div>
+
+    <!-- PIN display -->
+    <div class="mb-4">
+      <label class="block text-base font-medium text-gray-300 mb-2">PIN</label>
+      <div class="flex gap-3 justify-center mb-5" id="pin-dots">
+        <span class="w-5 h-5 rounded-full border-2 border-gray-600" id="dot-0"></span>
+        <span class="w-5 h-5 rounded-full border-2 border-gray-600" id="dot-1"></span>
+        <span class="w-5 h-5 rounded-full border-2 border-gray-600" id="dot-2"></span>
+        <span class="w-5 h-5 rounded-full border-2 border-gray-600" id="dot-3"></span>
+        <span class="w-5 h-5 rounded-full border-2 border-gray-600 hidden" id="dot-4"></span>
+        <span class="w-5 h-5 rounded-full border-2 border-gray-600 hidden" id="dot-5"></span>
+      </div>
+    </div>
+
+    <!-- PIN Pad -->
+    <div class="grid grid-cols-3 gap-3 mb-5" id="pin-pad">
+      {% for n in "123456789" %}
+      <button type="button" data-digit="{{ n }}"
+        class="pin-btn bg-gray-800 hover:bg-gray-700 active:bg-gray-600 active:scale-95
+               rounded-xl text-2xl font-semibold text-white py-5 transition select-none">
+        {{ n }}
+      </button>
+      {% endfor %}
+      <!-- Bottom row -->
+      <button type="button" id="pin-clear"
+        class="bg-gray-800 hover:bg-red-900/40 active:scale-95 rounded-xl text-base font-medium text-gray-400 py-5 transition select-none">
+        CLR
+      </button>
+      <button type="button" data-digit="0"
+        class="pin-btn bg-gray-800 hover:bg-gray-700 active:bg-gray-600 active:scale-95
+               rounded-xl text-2xl font-semibold text-white py-5 transition select-none">
+        0
+      </button>
+      <button type="button" id="pin-back"
+        class="bg-gray-800 hover:bg-gray-700 active:scale-95 rounded-xl text-2xl text-gray-400 py-5 transition select-none">
+        ⌫
+      </button>
+    </div>
+
+    <!-- Submit -->
+    <button id="submit-btn" type="button"
+      class="w-full bg-brand hover:bg-brand-dark active:scale-95 transition text-white font-bold rounded-xl py-5 text-xl">
+      Sign In
+    </button>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  if (localStorage.getItem('dc_token')) window.location.href = '/dashboard/';
+
+  let pin = '';
+  const MAX = 6;
+
+  function updateDots() {
+    for (let i = 0; i < MAX; i++) {
+      const dot = document.getElementById(`dot-${i}`);
+      if (!dot) continue;
+      if (i < 4) {
+        dot.classList.toggle('bg-brand', i < pin.length);
+        dot.classList.toggle('border-brand', i < pin.length);
+        dot.classList.toggle('border-gray-600', i >= pin.length);
+      } else {
+        dot.classList.toggle('hidden', pin.length <= 4);
+        dot.classList.toggle('bg-brand', i < pin.length);
+        dot.classList.toggle('border-brand', i < pin.length);
+      }
+    }
+  }
+
+  document.querySelectorAll('.pin-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (pin.length < MAX) { pin += btn.dataset.digit; updateDots(); }
+    });
+  });
+
+  document.getElementById('pin-back').addEventListener('click', () => {
+    pin = pin.slice(0, -1); updateDots();
+  });
+
+  document.getElementById('pin-clear').addEventListener('click', () => {
+    pin = ''; updateDots();
+  });
+
+  const errorBanner = document.getElementById('error-banner');
+  const submitBtn = document.getElementById('submit-btn');
+
+  function showError(msg) {
+    errorBanner.textContent = msg;
+    errorBanner.classList.remove('hidden');
+    pin = ''; updateDots();
+  }
+
+  function setLoading(loading) {
+    submitBtn.disabled = loading;
+    submitBtn.textContent = loading ? 'Signing in…' : 'Sign In';
+    submitBtn.classList.toggle('opacity-60', loading);
+  }
+
+  async function doLogin() {
+    errorBanner.classList.add('hidden');
+    const username = document.getElementById('username').value.trim();
+    if (!username) { showError('Please enter your username.'); return; }
+    if (pin.length < 4) { showError('PIN must be at least 4 digits.'); return; }
+
+    setLoading(true);
+    try {
+      const res = await fetch('/api/accounts/login/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, pin }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showError(data.non_field_errors?.[0] || data.detail || 'Invalid credentials.');
+        return;
+      }
+      if (data.must_change_pin) {
+        sessionStorage.setItem('dc_pending_user_id', data.user_id);
+        window.location.href = '/change-pin/';
+        return;
+      }
+      localStorage.setItem('dc_token', data.access_token);
+      localStorage.setItem('dc_user', JSON.stringify(data.user));
+      window.location.href = '/dashboard/';
+    } catch (_) {
+      showError('Network error. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  submitBtn.addEventListener('click', doLogin);
+
+  // Allow Enter key from username field to move to sign-in
+  document.getElementById('username').addEventListener('keydown', e => {
+    if (e.key === 'Enter') doLogin();
+  });
+</script>
+{% endblock %}
