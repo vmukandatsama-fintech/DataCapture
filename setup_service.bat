@@ -1,64 +1,36 @@
 @echo off
 :: Run once on the server as Administrator to register the Windows Service.
-:: Requires nssm.exe in C:\Tools\ — download from https://nssm.cc/download
+:: No external tools required — uses pywin32 (installed via pip).
 setlocal
 
 set APP=C:\DataCapture
-set NSSM=C:\Tools\nssm.exe
-set SVC=DataCapture
 set PYTHON=%APP%\venv\Scripts\python.exe
-set SCRIPT=%APP%\serve.py
-set LOG=%APP%\logs
+set PIP=%APP%\venv\Scripts\pip.exe
+set SVC=DataCapture
 
-if not exist "%NSSM%" (
-    echo ERROR: nssm.exe not found at %NSSM%
-    echo Download from https://nssm.cc/download and place nssm.exe in C:\Tools\
-    pause
-    exit /b 1
-)
+cd /d %APP%
 
-:: Create log directory
-if not exist "%LOG%" mkdir "%LOG%"
+echo [1/4] Installing pywin32...
+%PIP% install pywin32 --quiet
+%PYTHON% venv\Scripts\pywin32_postinstall.py -install 2>nul
 
-:: Remove existing service if present
-%NSSM% stop %SVC% 2>nul
-%NSSM% remove %SVC% confirm 2>nul
+echo [2/4] Registering Windows Service...
+%PYTHON% windows_service.py install
 
-:: Install service
-%NSSM% install %SVC% "%PYTHON%" "%SCRIPT%"
+echo [3/4] Configuring auto-restart on crash and auto-start on boot...
+sc config %SVC% start= auto
+sc failure %SVC% reset= 86400 actions= restart/5000/restart/5000/restart/5000
 
-:: Working directory
-%NSSM% set %SVC% AppDirectory "%APP%"
-
-:: Display name and description
-%NSSM% set %SVC% DisplayName "DataCapture Web App"
-%NSSM% set %SVC% Description "CY26 Data Capture — Waitress on port 8000"
-
-:: Auto-start on boot
-%NSSM% set %SVC% Start SERVICE_AUTO_START
-
-:: Restart automatically if it crashes (wait 5 seconds before restart)
-%NSSM% set %SVC% AppRestartDelay 5000
-%NSSM% set %SVC% AppExit Default Restart
-
-:: Log stdout and stderr to files
-%NSSM% set %SVC% AppStdout "%LOG%\app.log"
-%NSSM% set %SVC% AppStderr "%LOG%\error.log"
-%NSSM% set %SVC% AppRotateFiles 1
-%NSSM% set %SVC% AppRotateSeconds 86400
-
-:: Open firewall port 8000
+echo [4/4] Opening firewall port 8000...
 netsh advfirewall firewall delete rule name="DataCapture" >nul 2>&1
 netsh advfirewall firewall add rule name="DataCapture" dir=in action=allow protocol=TCP localport=8000
 
-:: Start the service now
-%NSSM% start %SVC%
+net start %SVC%
 
 echo.
 echo Service "%SVC%" installed and started.
-echo Auto-restarts on crash and on server reboot.
-echo Logs: %LOG%\app.log / error.log
-echo App:  http://192.168.10.28:8000
+echo Auto-restarts on crash, auto-starts on server reboot.
+echo App: http://192.168.10.28:8000
 echo.
 pause
 endlocal
