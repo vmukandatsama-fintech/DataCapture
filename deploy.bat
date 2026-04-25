@@ -1,12 +1,11 @@
 @echo off
-:: Run on the server to deploy the latest code from GitHub.
-:: Usage: deploy.bat
+:: Run on the server as Administrator to deploy latest code from GitHub.
 setlocal
 
 set APP=C:\DataCapture
 set PYTHON=%APP%\venv\Scripts\python.exe
 set PIP=%APP%\venv\Scripts\pip.exe
-set SVC=DataCapture
+set TASK=DataCapture
 
 cd /d %APP%
 
@@ -27,9 +26,10 @@ echo [3/5] Running migrations...
 echo [4/5] Collecting static files...
 %PYTHON% manage.py collectstatic --no-input --clear
 
-echo [5/5] Restarting service...
-net stop %SVC%
-net start %SVC%
+echo [5/5] Restarting server...
+schtasks /end /tn %TASK% 2>nul
+timeout /t 3 /nobreak >nul
+schtasks /run /tn %TASK%
 
 echo.
 echo Deploy complete. App running at http://192.168.10.28:8000
