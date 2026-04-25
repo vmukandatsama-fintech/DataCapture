@@ -1,0 +1,539 @@
+{% extends "base.html" %}
+{% block title %}Deliveries{% endblock %}
+
+{% block head %}
+<style>
+  /* ── Tablet-specific overrides ── */
+  .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .field-grid.three { grid-template-columns: 1fr 1fr 1fr; }
+  .form-panel { background: #111827; border: 1px solid #1f2937; border-radius: 1rem; padding: 1.5rem; margin-bottom: 1.5rem; }
+  .summary-card { background: #111827; border: 1px solid #1f2937; border-radius: 0.75rem; padding: 1.25rem; text-align: center; }
+  .summary-card .value { font-size: 2rem; font-weight: 700; line-height: 1; margin-top: 0.25rem; }
+  .tbl thead th { position: sticky; top: 0; background: #030712; z-index: 5; padding: 0.75rem 1rem; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; white-space: nowrap; }
+  .tbl tbody td { padding: 0.85rem 1rem; border-bottom: 1px solid #1f2937; vertical-align: middle; font-size: 1rem; }
+  .tbl tbody tr:last-child td { border-bottom: none; }
+  .tbl tbody tr:active { background: #1f2937; }
+  .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.78rem; font-weight: 600; }
+  /* Slide-in drawer for add form */
+  #drawer { position: fixed; inset: 0; z-index: 50; display: none; }
+  #drawer.open { display: flex; }
+  #drawer-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.7); }
+  #drawer-panel { position: relative; margin-left: auto; width: min(95vw, 640px); height: 100%; background: #030712; border-left: 1px solid #1f2937; overflow-y: auto; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
+  .drawer-field label { font-size: 1rem; font-weight: 600; color: #d1d5db; margin-bottom: 0.4rem; display: block; }
+  .drawer-field select, .drawer-field input { width: 100%; background: #111827; border: 1.5px solid #374151; color: #f9fafb; border-radius: 0.5rem; padding: 0.85rem 1rem; font-size: 1.05rem; min-height: 52px; -webkit-appearance: none; }
+  .drawer-field select:focus, .drawer-field input:focus { outline: none; border-color: #16a34a; box-shadow: 0 0 0 3px rgba(22,163,74,0.2); }
+  /* Big number stepper */
+  .stepper { display: flex; align-items: center; gap: 0; border: 1.5px solid #374151; border-radius: 0.5rem; overflow: hidden; }
+  .stepper button { background: #1f2937; color: #f9fafb; font-size: 1.5rem; font-weight: 700; width: 56px; min-height: 52px; border: none; border-radius: 0; flex-shrink: 0; cursor: pointer; transition: background 0.15s; }
+  .stepper button:active { background: #16a34a; }
+  .stepper input { flex: 1; background: #111827; border: none; border-left: 1.5px solid #374151; border-right: 1.5px solid #374151; color: #f9fafb; text-align: center; font-size: 1.3rem; font-weight: 700; min-height: 52px; padding: 0; }
+  .stepper input:focus { outline: none; background: #0f172a; }
+  /* Filter bar */
+  .filter-bar { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end; }
+  .filter-bar select, .filter-bar input[type="date"] { background: #111827; border: 1.5px solid #374151; color: #f9fafb; border-radius: 0.5rem; padding: 0.65rem 0.9rem; font-size: 1rem; min-height: 48px; -webkit-appearance: none; }
+  .filter-bar button { min-height: 48px; }
+</style>
+{% endblock %}
+
+{% block main_class %}p-4{% endblock %}
+
+{% block content %}
+<div id="page" class="hidden max-w-7xl mx-auto">
+
+  <!-- Page Header -->
+  <div class="flex items-center justify-between mb-5">
+    <div>
+      <h1 class="text-2xl font-bold tracking-tight">Deliveries</h1>
+      <p class="text-gray-400 text-sm mt-0.5">Expected transport — CY26</p>
+    </div>
+    <button id="btn-add" onclick="openDrawer()"
+      class="bg-brand hover:bg-brand-dark text-white font-semibold px-5 flex items-center gap-2">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+      </svg>
+      Add Booking
+    </button>
+  </div>
+
+  <!-- Summary Cards -->
+  <div class="grid grid-cols-3 gap-4 mb-5" id="summary-row">
+    <div class="summary-card">
+      <div class="text-xs font-semibold text-gray-500 uppercase tracking-widest">Interim Total Booked</div>
+      <div class="value text-white" id="s-interim-booked">—</div>
+      <div class="text-xs text-gray-500 mt-1">filtered period</div>
+    </div>
+    <div class="summary-card">
+      <div class="text-xs font-semibold text-gray-500 uppercase tracking-widest">Total Expected</div>
+      <div class="value text-brand" id="s-total-expected">—</div>
+      <div class="text-xs text-gray-500 mt-1">all bookings</div>
+    </div>
+    <div class="summary-card">
+      <div class="text-xs font-semibold text-gray-500 uppercase tracking-widest">Balance Outstanding</div>
+      <div class="value text-yellow-400" id="s-balance">—</div>
+      <div class="text-xs text-gray-500 mt-1">booked – offloaded</div>
+    </div>
+  </div>
+
+  <!-- Interim offloaded sub-row -->
+  <div class="grid grid-cols-2 gap-4 mb-5">
+    <div class="summary-card">
+      <div class="text-xs font-semibold text-gray-500 uppercase tracking-widest">Interim Offloaded</div>
+      <div class="value text-blue-400" id="s-interim-offloaded">—</div>
+    </div>
+    <div class="summary-card">
+      <div class="text-xs font-semibold text-gray-500 uppercase tracking-widest">Interim Difference</div>
+      <div class="value text-gray-300" id="s-interim-diff">—</div>
+    </div>
+  </div>
+
+  <!-- Filter Bar -->
+  <div class="form-panel mb-5">
+    <div class="filter-bar">
+      <div>
+        <label class="text-xs text-gray-500 uppercase tracking-wider mb-1 block">From</label>
+        <input type="date" id="filter-from" />
+      </div>
+      <div>
+        <label class="text-xs text-gray-500 uppercase tracking-wider mb-1 block">To</label>
+        <input type="date" id="filter-to" />
+      </div>
+      <div>
+        <label class="text-xs text-gray-500 uppercase tracking-wider mb-1 block">Area</label>
+        <select id="filter-area">
+          <option value="">All Areas</option>
+        </select>
+      </div>
+      <button onclick="applyFilters()" class="bg-brand text-white px-5">Filter</button>
+      <button onclick="clearFilters()" class="border border-gray-700 text-gray-300 px-5">Clear</button>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="rounded-xl border border-gray-800 overflow-hidden mb-5">
+    <div class="overflow-x-auto">
+      <table class="tbl w-full">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Area</th>
+            <th>Transporter</th>
+            <th>Truck Reg</th>
+            <th>Driver</th>
+            <th>Driver ID</th>
+            <th>Status</th>
+            <th class="text-right">Qty Booked</th>
+            <th class="text-right">Qty Offloaded</th>
+            <th class="text-right">Difference</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="table-body">
+          <tr id="empty-row">
+            <td colspan="10" class="text-center text-gray-500 py-12">Loading...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── ADD / EDIT DRAWER ── -->
+<div id="drawer">
+  <div id="drawer-backdrop" onclick="closeDrawer()"></div>
+  <div id="drawer-panel">
+    <div class="flex items-center justify-between mb-2">
+      <h2 class="text-xl font-bold" id="drawer-title">Add Booking</h2>
+      <button onclick="closeDrawer()" class="text-gray-400 hover:text-white p-2 rounded-lg border border-gray-700 min-h-0" style="min-height:40px;min-width:40px;padding:0.4rem;">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+    <input type="hidden" id="edit-id" />
+
+    <!-- Booked toggle — top of form -->
+    <div class="drawer-field">
+      <label>Status</label>
+      <button type="button" id="booked-toggle" onclick="toggleBooked()"
+        class="w-full flex items-center justify-between px-5 rounded-lg border-2 transition"
+        style="min-height:52px; background:#111827; border-color:#16a34a;">
+        <span id="booked-label" class="font-semibold text-base text-green-400">Booked</span>
+        <span id="booked-indicator"
+          class="w-6 h-6 rounded-full border-2 flex items-center justify-center transition"
+          style="background:#16a34a; border-color:#16a34a;">
+          <svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+          </svg>
+        </span>
+      </button>
+      <input type="hidden" id="f-is-booked" value="true" />
+    </div>
+
+    <div class="field-grid">
+      <div class="drawer-field">
+        <label>Date Expected <span class="text-red-400">*</span></label>
+        <input type="date" id="f-date" required />
+      </div>
+      <div class="drawer-field">
+        <label>Area <span class="text-red-400">*</span></label>
+        <select id="f-area" required>
+          <option value="">Select area…</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field-grid">
+      <div class="drawer-field">
+        <label>Transporter <span class="text-red-400">*</span></label>
+        <select id="f-transporter" required>
+          <option value="">Select…</option>
+          <option value="Bristan">Bristan</option>
+          <option value="Staudic">Staudic</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+      <div class="drawer-field">
+        <label>Truck Reg <span class="text-red-400">*</span></label>
+        <input type="text" id="f-truck-reg" placeholder="e.g. AGZ-6206" autocomplete="off" style="text-transform:uppercase" />
+      </div>
+    </div>
+
+    <div class="drawer-field">
+      <label>Driver Name <span class="text-red-400">*</span></label>
+      <input type="text" id="f-driver-name" placeholder="Full name" autocomplete="off" />
+    </div>
+
+    <div class="drawer-field">
+      <label>Driver ID <span class="text-red-400">*</span></label>
+      <input type="text" id="f-driver-id" placeholder="##-#######-#-##" autocomplete="off"
+        pattern="\d{2}-\d{5,7}-[A-Za-z]-\d{2}" title="Format: ##-#######-#-##" />
+      <p class="text-xs text-gray-500 mt-1">Format: 63-2293474-P-80</p>
+    </div>
+
+    <div class="drawer-field">
+      <label>Qty Booked <span class="text-red-400">*</span></label>
+      <div class="stepper">
+        <button type="button" onclick="stepQty('f-qty-booked', -1)">−</button>
+        <input type="number" id="f-qty-booked" value="0" min="0" inputmode="numeric" />
+        <button type="button" onclick="stepQty('f-qty-booked', 1)">+</button>
+      </div>
+    </div>
+
+    <div class="drawer-field" id="offloaded-field" style="display:none">
+      <label>Qty Offloaded</label>
+      <div class="stepper">
+        <button type="button" onclick="stepQty('f-qty-offloaded', -1)">−</button>
+        <input type="number" id="f-qty-offloaded" value="" min="0" inputmode="numeric" placeholder="—" />
+        <button type="button" onclick="stepQty('f-qty-offloaded', 1)">+</button>
+      </div>
+    </div>
+
+    <p class="text-red-400 text-sm hidden" id="drawer-error"></p>
+
+    <div class="flex gap-3 mt-2">
+      <button onclick="saveDelivery()" class="flex-1 bg-brand text-white font-bold text-lg">
+        Save
+      </button>
+      <button onclick="closeDrawer()" class="flex-1 border border-gray-700 text-gray-300">
+        Cancel
+      </button>
+    </div>
+
+    <div id="delete-section" class="hidden mt-3 pt-3 border-t border-gray-800">
+      <button onclick="deleteDelivery()" class="w-full bg-red-900/30 border border-red-800 text-red-400 font-semibold">
+        Delete this booking
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const API = '/api/accounts';
+let token = localStorage.getItem('dc_token');
+let currentUser = null;
+let areas = [];
+let filters = { date_from: '', date_to: '', area: '' };
+
+// ── Auth guard ──
+(function () {
+  const raw = localStorage.getItem('dc_user');
+  if (!token || !raw) { window.location.href = '/login/'; return; }
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    if (payload.exp * 1000 <= Date.now()) {
+      localStorage.removeItem('dc_token');
+      localStorage.removeItem('dc_user');
+      window.location.href = '/login/';
+      return;
+    }
+    currentUser = JSON.parse(raw);
+  } catch (_) {
+    localStorage.removeItem('dc_token');
+    localStorage.removeItem('dc_user');
+    window.location.href = '/login/';
+    return;
+  }
+  document.getElementById('page').classList.remove('hidden');
+})();
+
+// ── Fetch helpers ──
+async function apiFetch(path, opts = {}) {
+  const res = await fetch(`${API}${path}`, {
+    ...opts,
+    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', ...(opts.headers || {}) },
+  });
+  if (res.status === 401) {
+    localStorage.removeItem('dc_token');
+    localStorage.removeItem('dc_user');
+    window.location.href = '/login/';
+    throw new Error('Unauthorized');
+  }
+  return res;
+}
+
+// ── Load areas for dropdowns ──
+async function loadAreas() {
+  try {
+    const res = await apiFetch('/truck-areas/');
+    areas = await res.json();
+    const areaSelects = ['filter-area', 'f-area'];
+    areaSelects.forEach(id => {
+      const el = document.getElementById(id);
+      const keepFirst = el.querySelector('option');
+      el.innerHTML = '';
+      if (keepFirst) el.appendChild(keepFirst);
+      areas.forEach(a => {
+        const opt = document.createElement('option');
+        opt.value = a; opt.textContent = a;
+        el.appendChild(opt);
+      });
+    });
+  } catch (_) {}
+}
+
+// ── Load & render deliveries ──
+async function loadDeliveries() {
+  const params = new URLSearchParams();
+  if (filters.date_from) params.set('date_from', filters.date_from);
+  if (filters.date_to) params.set('date_to', filters.date_to);
+  if (filters.area) params.set('area', filters.area);
+
+  const res = await apiFetch(`/truck-deliveries/?${params}`);
+  const data = await res.json();
+
+  renderSummary(data.summary);
+  renderTable(data.results);
+}
+
+function renderSummary(s) {
+  document.getElementById('s-interim-booked').textContent = s.interim_booked.toLocaleString();
+  document.getElementById('s-interim-offloaded').textContent = s.interim_offloaded.toLocaleString();
+  document.getElementById('s-interim-diff').textContent = s.interim_difference.toLocaleString();
+  document.getElementById('s-total-expected').textContent = s.total_expected.toLocaleString();
+  document.getElementById('s-balance').textContent = s.balance_outstanding.toLocaleString();
+}
+
+function fmtDate(d) {
+  if (!d) return '';
+  const [y, m, day] = d.split('-');
+  return `${day}-${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+m-1]}-${y.slice(2)}`;
+}
+
+function renderTable(rows) {
+  const tbody = document.getElementById('table-body');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="10" class="text-center text-gray-500 py-12">No deliveries found</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(r => {
+    const diff = r.difference !== null ? r.difference : '—';
+    const diffClass = r.difference === 0 ? 'text-green-400' : r.difference > 0 ? 'text-yellow-400' : 'text-red-400';
+    const offloaded = r.qty_offloaded !== null ? r.qty_offloaded.toLocaleString() : '<span class="text-gray-600">—</span>';
+    return `
+    <tr class="cursor-pointer hover:bg-gray-900/50" onclick="openEdit(${JSON.stringify(r).replace(/"/g, '&quot;')})">
+      <td class="font-mono text-sm">${fmtDate(r.date_expected)}</td>
+      <td><span class="badge bg-green-900/40 text-green-300">${r.area}</span></td>
+      <td class="text-gray-300">${r.transporter}</td>
+      <td class="font-mono font-semibold">${r.truck_reg}</td>
+      <td>${r.driver_name}</td>
+      <td class="font-mono text-sm text-gray-400">${r.driver_id}</td>
+      <td>${r.is_booked
+        ? '<span class="badge bg-green-900/40 text-green-400 border border-green-800">Booked</span>'
+        : '<span class="badge bg-gray-800 text-gray-400 border border-gray-700">Unbooked</span>'
+      }</td>
+      <td class="text-right font-bold text-white">${r.qty_booked.toLocaleString()}</td>
+      <td class="text-right text-blue-300">${offloaded}</td>
+      <td class="text-right font-semibold ${r.difference !== null ? diffClass : 'text-gray-600'}">${r.difference !== null ? r.difference.toLocaleString() : '—'}</td>
+      <td class="text-right">
+        <svg class="w-4 h-4 text-gray-600 inline" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+        </svg>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Filters ──
+function applyFilters() {
+  filters.date_from = document.getElementById('filter-from').value;
+  filters.date_to = document.getElementById('filter-to').value;
+  filters.area = document.getElementById('filter-area').value;
+  loadDeliveries();
+}
+
+function clearFilters() {
+  document.getElementById('filter-from').value = '';
+  document.getElementById('filter-to').value = '';
+  document.getElementById('filter-area').value = '';
+  filters = { date_from: '', date_to: '', area: '' };
+  loadDeliveries();
+}
+
+// ── Drawer ──
+function openDrawer() {
+  document.getElementById('edit-id').value = '';
+  document.getElementById('drawer-title').textContent = 'Add Booking';
+  document.getElementById('f-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('f-area').value = '';
+  document.getElementById('f-transporter').value = '';
+  document.getElementById('f-truck-reg').value = '';
+  document.getElementById('f-driver-name').value = '';
+  document.getElementById('f-driver-id').value = '';
+  document.getElementById('f-qty-booked').value = 0;
+  document.getElementById('f-qty-offloaded').value = '';
+  document.getElementById('offloaded-field').style.display = 'none';
+  document.getElementById('delete-section').classList.add('hidden');
+  document.getElementById('drawer-error').classList.add('hidden');
+  setBookedUI(true);
+  document.getElementById('drawer').classList.add('open');
+}
+
+function openEdit(r) {
+  document.getElementById('edit-id').value = r.id;
+  document.getElementById('drawer-title').textContent = 'Edit Booking';
+  document.getElementById('f-date').value = r.date_expected;
+  document.getElementById('f-area').value = r.area;
+  document.getElementById('f-transporter').value = r.transporter;
+  document.getElementById('f-truck-reg').value = r.truck_reg;
+  document.getElementById('f-driver-name').value = r.driver_name;
+  document.getElementById('f-driver-id').value = r.driver_id;
+  document.getElementById('f-qty-booked').value = r.qty_booked;
+  document.getElementById('f-qty-offloaded').value = r.qty_offloaded !== null ? r.qty_offloaded : '';
+  document.getElementById('offloaded-field').style.display = '';
+  document.getElementById('delete-section').classList.remove('hidden');
+  document.getElementById('drawer-error').classList.add('hidden');
+  setBookedUI(r.is_booked);
+  document.getElementById('drawer').classList.add('open');
+}
+
+function closeDrawer() {
+  document.getElementById('drawer').classList.remove('open');
+}
+
+// ── Booked toggle ──
+function setBookedUI(booked) {
+  document.getElementById('f-is-booked').value = booked ? 'true' : 'false';
+  const btn = document.getElementById('booked-toggle');
+  const lbl = document.getElementById('booked-label');
+  const dot = document.getElementById('booked-indicator');
+  if (booked) {
+    btn.style.borderColor = '#16a34a';
+    lbl.textContent = 'Booked';
+    lbl.className = 'font-semibold text-base text-green-400';
+    dot.style.background = '#16a34a';
+    dot.style.borderColor = '#16a34a';
+    dot.innerHTML = `<svg class="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>`;
+  } else {
+    btn.style.borderColor = '#374151';
+    lbl.textContent = 'Unbooked';
+    lbl.className = 'font-semibold text-base text-gray-400';
+    dot.style.background = 'transparent';
+    dot.style.borderColor = '#6b7280';
+    dot.innerHTML = '';
+  }
+}
+
+function toggleBooked() {
+  const current = document.getElementById('f-is-booked').value === 'true';
+  setBookedUI(!current);
+}
+
+// ── Stepper for qty fields ──
+function stepQty(fieldId, delta) {
+  const el = document.getElementById(fieldId);
+  const val = parseInt(el.value) || 0;
+  el.value = Math.max(0, val + delta);
+}
+
+// ── Save ──
+async function saveDelivery() {
+  const editId = document.getElementById('edit-id').value;
+  const errEl = document.getElementById('drawer-error');
+  errEl.classList.add('hidden');
+
+  const payload = {
+    date_expected: document.getElementById('f-date').value,
+    area: document.getElementById('f-area').value,
+    transporter: document.getElementById('f-transporter').value,
+    truck_reg: document.getElementById('f-truck-reg').value.toUpperCase().trim(),
+    driver_name: document.getElementById('f-driver-name').value.trim(),
+    driver_id: document.getElementById('f-driver-id').value.trim(),
+    qty_booked: parseInt(document.getElementById('f-qty-booked').value) || 0,
+    is_booked: document.getElementById('f-is-booked').value === 'true',
+  };
+  const offloadedRaw = document.getElementById('f-qty-offloaded').value;
+  payload.qty_offloaded = offloadedRaw !== '' ? parseInt(offloadedRaw) : null;
+
+  // Basic validation
+  const required = ['date_expected','area','transporter','truck_reg','driver_name','driver_id'];
+  for (const k of required) {
+    if (!payload[k]) { showErr('Please fill in all required fields.'); return; }
+  }
+
+  try {
+    const method = editId ? 'PUT' : 'POST';
+    const url = editId ? `/truck-deliveries/${editId}/` : '/truck-deliveries/';
+    const res = await apiFetch(url, { method, body: JSON.stringify(payload) });
+    if (!res.ok) {
+      const err = await res.json();
+      showErr(JSON.stringify(err));
+      return;
+    }
+    closeDrawer();
+    loadDeliveries();
+  } catch (e) {
+    showErr('Network error. Please try again.');
+  }
+}
+
+async function deleteDelivery() {
+  const editId = document.getElementById('edit-id').value;
+  if (!editId) return;
+  if (!confirm('Delete this booking?')) return;
+  await apiFetch(`/truck-deliveries/${editId}/`, { method: 'DELETE' });
+  closeDrawer();
+  loadDeliveries();
+}
+
+function showErr(msg) {
+  const el = document.getElementById('drawer-error');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+// ── Default date filter to today ──
+(function setDefaultDates() {
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('filter-from').value = today;
+  document.getElementById('filter-to').value = today;
+  filters.date_from = today;
+  filters.date_to = today;
+})();
+
+// ── Init ──
+loadAreas().then(() => loadDeliveries());
+</script>
+{% endblock %}

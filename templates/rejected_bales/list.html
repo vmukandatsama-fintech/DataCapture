@@ -1,0 +1,551 @@
+{% extends "base.html" %}
+{% block title %}Rejected Bales{% endblock %}
+
+{% block head %}
+<style>
+  .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .form-panel { background: #111827; border: 1px solid #1f2937; border-radius: 1rem; padding: 1.5rem; margin-bottom: 1.5rem; }
+  .summary-card { background: #111827; border: 1px solid #1f2937; border-radius: 0.75rem; padding: 1.25rem; text-align: center; }
+  .summary-card .value { font-size: 2rem; font-weight: 700; line-height: 1; margin-top: 0.25rem; }
+  .tbl thead th { position: sticky; top: 0; background: #030712; z-index: 5; padding: 0.75rem 1rem; font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; white-space: nowrap; }
+  .tbl tbody td { padding: 0.85rem 1rem; border-bottom: 1px solid #1f2937; vertical-align: middle; font-size: 1rem; }
+  .tbl tbody tr:last-child td { border-bottom: none; }
+  .tbl tbody tr:active { background: #1f2937; }
+  .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.78rem; font-weight: 600; }
+  /* Drawer */
+  #drawer { position: fixed; inset: 0; z-index: 50; display: none; }
+  #drawer.open { display: flex; }
+  #drawer-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.7); }
+  #drawer-panel { position: relative; margin-left: auto; width: min(95vw, 660px); height: 100%; background: #030712; border-left: 1px solid #1f2937; overflow-y: auto; padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
+  .drawer-field label { font-size: 1rem; font-weight: 600; color: #d1d5db; margin-bottom: 0.4rem; display: block; }
+  .drawer-field select, .drawer-field input[type="text"], .drawer-field input[type="date"], .drawer-field input[type="number"] {
+    width: 100%; background: #111827; border: 1.5px solid #374151; color: #f9fafb; border-radius: 0.5rem; padding: 0.85rem 1rem; font-size: 1.05rem; min-height: 52px; -webkit-appearance: none;
+  }
+  .drawer-field select:focus, .drawer-field input:focus { outline: none; border-color: #16a34a; box-shadow: 0 0 0 3px rgba(22,163,74,0.2); }
+  /* Grower search */
+  .grower-wrap { position: relative; }
+  #grower-results { position: absolute; top: 100%; left: 0; right: 0; background: #1f2937; border: 1.5px solid #374151; border-top: none; border-radius: 0 0 0.5rem 0.5rem; z-index: 10; max-height: 200px; overflow-y: auto; }
+  .grower-option { padding: 0.75rem 1rem; cursor: pointer; font-size: 1rem; }
+  .grower-option:hover, .grower-option:active { background: #374151; }
+  /* Filter bar */
+  .filter-bar { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end; }
+  .filter-bar select, .filter-bar input[type="date"] { background: #111827; border: 1.5px solid #374151; color: #f9fafb; border-radius: 0.5rem; padding: 0.65rem 0.9rem; font-size: 1rem; min-height: 48px; -webkit-appearance: none; }
+  .filter-bar button { min-height: 48px; }
+</style>
+{% endblock %}
+
+{% block main_class %}p-4{% endblock %}
+
+{% block content %}
+<div id="page" class="hidden max-w-7xl mx-auto">
+
+  <!-- Page Header -->
+  <div class="flex items-center justify-between mb-5">
+    <div>
+      <h1 class="text-2xl font-bold tracking-tight">Rejected Bales</h1>
+      <p class="text-gray-400 text-sm mt-0.5">Floor rejections — CY26</p>
+    </div>
+    <button onclick="openDrawer()"
+      class="bg-brand hover:bg-brand-dark text-white font-semibold px-5 flex items-center gap-2">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+      </svg>
+      Add Rejection
+    </button>
+  </div>
+
+  <!-- Summary -->
+  <div class="grid grid-cols-2 gap-4 mb-5">
+    <div class="summary-card">
+      <div class="text-xs font-semibold text-gray-500 uppercase tracking-widest">Filtered Period</div>
+      <div class="value text-red-400" id="s-filtered">—</div>
+      <div class="text-xs text-gray-500 mt-1">rejections</div>
+    </div>
+    <div class="summary-card">
+      <div class="text-xs font-semibold text-gray-500 uppercase tracking-widest">All Time</div>
+      <div class="value text-white" id="s-total">—</div>
+      <div class="text-xs text-gray-500 mt-1">total recorded</div>
+    </div>
+  </div>
+
+  <!-- Filter Bar -->
+  <div class="form-panel mb-5">
+    <div class="filter-bar">
+      <div>
+        <label class="text-xs text-gray-500 uppercase tracking-wider mb-1 block">From</label>
+        <input type="date" id="filter-from" />
+      </div>
+      <div>
+        <label class="text-xs text-gray-500 uppercase tracking-wider mb-1 block">To</label>
+        <input type="date" id="filter-to" />
+      </div>
+      <div>
+        <label class="text-xs text-gray-500 uppercase tracking-wider mb-1 block">Floor</label>
+        <select id="filter-floor">
+          <option value="">All Floors</option>
+        </select>
+      </div>
+      <button onclick="applyFilters()" class="bg-brand text-white px-5">Filter</button>
+      <button onclick="clearFilters()" class="border border-gray-700 text-gray-300 px-5">Clear</button>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="rounded-xl border border-gray-800 overflow-hidden mb-5">
+    <div class="overflow-x-auto">
+      <table class="tbl w-full">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Floor</th>
+            <th>Grower No.</th>
+            <th>Grower Name</th>
+            <th>Ticket No.</th>
+            <th>Lot</th>
+            <th>Group</th>
+            <th>Classification</th>
+            <th>NTRM Type</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="table-body">
+          <tr id="empty-row">
+            <td colspan="10" class="text-center text-gray-500 py-12">Loading…</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── DRAWER ── -->
+<div id="drawer">
+  <div id="drawer-backdrop" onclick="closeDrawer()"></div>
+  <div id="drawer-panel">
+    <div class="flex items-center justify-between mb-2">
+      <h2 class="text-xl font-bold" id="drawer-title">Add Rejection</h2>
+      <button onclick="closeDrawer()" style="min-height:40px;min-width:40px;padding:0.4rem;"
+        class="text-gray-400 hover:text-white rounded-lg border border-gray-700">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+    <input type="hidden" id="edit-id" />
+
+    <div class="drawer-field">
+      <label>Ticket Number <span class="text-red-400">*</span></label>
+      <input type="text" id="f-ticket" placeholder="e.g. 1261702363" autocomplete="off" inputmode="numeric" />
+    </div>
+
+    <div class="field-grid">
+      <div class="drawer-field">
+        <label>Date <span class="text-red-400">*</span></label>
+        <input type="date" id="f-date" required />
+      </div>
+      <div class="drawer-field">
+        <label>Floor <span class="text-red-400">*</span></label>
+        <select id="f-floor" required>
+          <option value="">Select floor…</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Grower Number with live search -->
+    <div class="drawer-field">
+      <label>Grower Number <span class="text-red-400">*</span></label>
+      <div class="grower-wrap">
+        <input type="text" id="f-grower-search" placeholder="Type grower ID or name…" autocomplete="off" />
+        <div id="grower-results" class="hidden"></div>
+      </div>
+      <input type="hidden" id="f-grower-id" />
+    </div>
+
+    <div class="drawer-field">
+      <label>Grower Name</label>
+      <input type="text" id="f-grower-name" readonly
+        style="background:#0f172a; color:#9ca3af; cursor:default;" placeholder="Auto-filled from grower lookup" />
+    </div>
+
+    <div class="field-grid">
+      <div class="drawer-field">
+        <label>Lot Number <span class="text-red-400">*</span></label>
+        <input type="text" id="f-lot" placeholder="e.g. 6" autocomplete="off" inputmode="numeric" />
+      </div>
+    </div>
+
+    <div class="field-grid">
+      <div class="drawer-field">
+        <label>Group Number</label>
+        <input type="text" id="f-group" placeholder="Enter manually" autocomplete="off" inputmode="numeric" />
+      </div>
+      <div class="drawer-field">
+        <label>Classification <span class="text-red-400">*</span></label>
+        <select id="f-classification" required onchange="onClassificationChange()">
+          <option value="">Select reason…</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- NTRM sub-options — shown only when NTRM is selected -->
+    <div id="ntrm-section" class="hidden">
+      <div style="border-left: 3px solid #f97316; padding-left: 1rem; background: #1c1107; border-radius: 0 0.5rem 0.5rem 0; padding: 1rem 1rem 1rem 1.25rem;">
+        <p class="text-xs font-semibold text-orange-400 uppercase tracking-widest mb-3">NTRM — Specify Type</p>
+        <div class="field-grid three" style="grid-template-columns: repeat(3, 1fr); gap: 0.5rem;" id="ntrm-grid">
+          <!-- Rendered by JS -->
+        </div>
+      </div>
+    </div>
+    <input type="hidden" id="f-ntrm-type" value="" />
+
+    <p class="text-red-400 text-sm hidden" id="drawer-error"></p>
+
+    <div class="flex gap-3 mt-2">
+      <button onclick="saveBale()" class="flex-1 bg-brand text-white font-bold text-lg">Save</button>
+      <button onclick="closeDrawer()" class="flex-1 border border-gray-700 text-gray-300">Cancel</button>
+    </div>
+
+    <div id="delete-section" class="hidden mt-3 pt-3 border-t border-gray-800">
+      <button onclick="deleteBale()" class="w-full bg-red-900/30 border border-red-800 text-red-400 font-semibold">
+        Delete this record
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const API = '/api/accounts';
+let token = localStorage.getItem('dc_token');
+
+// ── Auth guard ──
+(function () {
+  const raw = localStorage.getItem('dc_user');
+  if (!token || !raw) { window.location.href = '/login/'; return; }
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    if (payload.exp * 1000 <= Date.now()) {
+      localStorage.removeItem('dc_token'); localStorage.removeItem('dc_user');
+      window.location.href = '/login/'; return;
+    }
+  } catch (_) { window.location.href = '/login/'; return; }
+  document.getElementById('page').classList.remove('hidden');
+})();
+
+async function apiFetch(path, opts = {}) {
+  const res = await fetch(`${API}${path}`, {
+    ...opts,
+    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', ...(opts.headers || {}) },
+  });
+  if (res.status === 401) {
+    localStorage.removeItem('dc_token'); localStorage.removeItem('dc_user');
+    window.location.href = '/login/'; throw new Error('Unauthorized');
+  }
+  return res;
+}
+
+let floors = [];
+let classifications = [];
+let filters = { date_from: '', date_to: '', floor: '' };
+let allTotal = 0;
+let growerTimer = null;
+
+// ── Load reference data ──
+async function loadReferenceData() {
+  const [fRes, cRes] = await Promise.all([
+    apiFetch('/floors/'),
+    apiFetch('/rejection-classifications/'),
+  ]);
+  const fData = await fRes.json();
+  const cData = await cRes.json();
+  floors = fData.results ?? fData;
+  classifications = cData.results ?? cData;
+
+  // Populate floor dropdowns
+  ['filter-floor', 'f-floor'].forEach(id => {
+    const el = document.getElementById(id);
+    const first = el.querySelector('option');
+    el.innerHTML = ''; if (first) el.appendChild(first);
+    floors.forEach(f => {
+      const o = document.createElement('option');
+      o.value = f.id; o.textContent = `${f.name} (${f.location})`;
+      el.appendChild(o);
+    });
+  });
+
+  // Populate classification dropdown
+  const cEl = document.getElementById('f-classification');
+  const firstC = cEl.querySelector('option');
+  cEl.innerHTML = ''; if (firstC) cEl.appendChild(firstC);
+  classifications.forEach(c => {
+    const o = document.createElement('option');
+    o.value = c.id; o.textContent = `${c.code} — ${c.description}`;
+    cEl.appendChild(o);
+  });
+}
+
+// ── Load bales ──
+async function loadBales() {
+  const params = new URLSearchParams();
+  if (filters.date_from) params.set('date_from', filters.date_from);
+  if (filters.date_to) params.set('date_to', filters.date_to);
+  if (filters.floor) params.set('floor', filters.floor);
+  const res = await apiFetch(`/rejected-bales/?${params}`);
+  const data = await res.json();
+  document.getElementById('s-filtered').textContent = data.total.toLocaleString();
+
+  // All-time total (no filters)
+  if (!filters.date_from && !filters.date_to && !filters.floor) {
+    allTotal = data.total;
+  }
+  document.getElementById('s-total').textContent = allTotal.toLocaleString();
+  renderTable(data.results);
+}
+
+function fmtDate(d) {
+  if (!d) return '';
+  const [y, m, day] = d.split('-');
+  return `${day}-${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+m-1]}-${y.slice(2)}`;
+}
+
+function renderTable(rows) {
+  const tbody = document.getElementById('table-body');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="10" class="text-center text-gray-500 py-12">No rejections found</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(r => `
+    <tr class="cursor-pointer hover:bg-gray-900/50" onclick="openEdit(${JSON.stringify(r).replace(/"/g,'&quot;')})">
+      <td class="font-mono text-sm">${fmtDate(r.date)}</td>
+      <td><span class="badge bg-orange-900/40 text-orange-300">${r.floor_name}</span></td>
+      <td class="font-mono text-brand font-semibold">${r.grower_number}</td>
+      <td class="text-gray-200">${r.grower_name || '—'}</td>
+      <td class="font-mono text-sm">${r.ticket_number}</td>
+      <td class="text-center font-semibold">${r.lot_number}</td>
+      <td class="text-center text-gray-400">${r.group_number}</td>
+      <td><span class="badge bg-red-900/30 text-red-300 border border-red-800">${r.classification_code}</span>
+          <span class="text-xs text-gray-500 ml-1">${r.classification_description}</span></td>
+      <td>${r.ntrm_type ? `<span class="badge bg-orange-900/30 text-orange-300 border border-orange-800">${r.ntrm_type}</span>` : '<span class="text-gray-700">—</span>'}</td>
+      <td class="text-right">
+        <svg class="w-4 h-4 text-gray-600 inline" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+        </svg>
+      </td>
+    </tr>`).join('');
+}
+
+// ── Filters ──
+function applyFilters() {
+  filters.date_from = document.getElementById('filter-from').value;
+  filters.date_to = document.getElementById('filter-to').value;
+  filters.floor = document.getElementById('filter-floor').value;
+  loadBales();
+}
+function clearFilters() {
+  document.getElementById('filter-from').value = '';
+  document.getElementById('filter-to').value = '';
+  document.getElementById('filter-floor').value = '';
+  filters = { date_from: '', date_to: '', floor: '' };
+  loadBales();
+}
+
+// ── NTRM options ──
+const NTRM_OPTIONS = [
+  'DIES','F/MATTER','F/MATTER - GRASS','F/MATTER - WIRE','F/MATTER - PLASTIC',
+  'HO','MDY','PAIN','MXD','NESTI','OIL','STONI','WET','N/A',
+];
+
+(function buildNtrmGrid() {
+  const grid = document.getElementById('ntrm-grid');
+  grid.innerHTML = NTRM_OPTIONS.map(opt => `
+    <button type="button" data-ntrm="${opt}"
+      onclick="selectNtrm(this)"
+      class="ntrm-btn px-3 py-2 rounded-lg border border-gray-700 text-sm font-semibold text-gray-300
+             bg-gray-900 hover:border-orange-500 hover:text-orange-300 active:bg-orange-900/30 transition text-left">
+      ${opt}
+    </button>`).join('');
+})();
+
+function onClassificationChange() {
+  const sel = document.getElementById('f-classification');
+  const selected = sel.options[sel.selectedIndex];
+  const code = selected ? selected.text.split(' — ')[0].trim() : '';
+  const section = document.getElementById('ntrm-section');
+  if (code === 'NTRM') {
+    section.classList.remove('hidden');
+  } else {
+    section.classList.add('hidden');
+    setNtrm('');
+  }
+}
+
+function selectNtrm(btn) {
+  document.querySelectorAll('.ntrm-btn').forEach(b => {
+    b.classList.remove('border-orange-500', 'text-orange-300', 'bg-orange-900/30');
+    b.classList.add('border-gray-700', 'text-gray-300');
+  });
+  btn.classList.add('border-orange-500', 'text-orange-300', 'bg-orange-900/30');
+  btn.classList.remove('border-gray-700', 'text-gray-300');
+  setNtrm(btn.dataset.ntrm);
+}
+
+function setNtrm(value) {
+  document.getElementById('f-ntrm-type').value = value;
+  if (!value) {
+    document.querySelectorAll('.ntrm-btn').forEach(b => {
+      b.classList.remove('border-orange-500', 'text-orange-300', 'bg-orange-900/30');
+      b.classList.add('border-gray-700', 'text-gray-300');
+    });
+  }
+}
+
+// ── Grower live search ──
+document.getElementById('f-grower-search').addEventListener('input', function () {
+  clearTimeout(growerTimer);
+  const q = this.value.trim();
+  if (q.length < 2) { document.getElementById('grower-results').classList.add('hidden'); return; }
+  growerTimer = setTimeout(() => searchGrowers(q), 300);
+});
+
+async function searchGrowers(q) {
+  const res = await apiFetch(`/growers/lookup/?q=${encodeURIComponent(q)}`);
+  const data = await res.json();
+  const el = document.getElementById('grower-results');
+  if (!data.length) { el.classList.add('hidden'); return; }
+  el.innerHTML = data.map(g =>
+    `<div class="grower-option" onclick="selectGrower(${JSON.stringify(g).replace(/"/g,'&quot;')})">
+      <span class="font-mono text-brand">${g.grower_id}</span>
+      <span class="text-gray-300 ml-2">${g.grower_name}</span>
+      <span class="text-gray-500 ml-2 text-sm">Grp ${g.group_code}</span>
+    </div>`
+  ).join('');
+  el.classList.remove('hidden');
+}
+
+function selectGrower(g) {
+  document.getElementById('f-grower-search').value = g.grower_id;
+  document.getElementById('f-grower-id').value = g.grower_id;
+  document.getElementById('f-grower-name').value = g.grower_name;
+  document.getElementById('grower-results').classList.add('hidden');
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.grower-wrap')) {
+    document.getElementById('grower-results').classList.add('hidden');
+  }
+});
+
+// ── Drawer ──
+function openDrawer() {
+  document.getElementById('edit-id').value = '';
+  document.getElementById('drawer-title').textContent = 'Add Rejection';
+  document.getElementById('f-ticket').value = '';
+  document.getElementById('f-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('f-floor').value = '';
+  document.getElementById('f-grower-search').value = '';
+  document.getElementById('f-grower-id').value = '';
+  document.getElementById('f-grower-name').value = '';
+  document.getElementById('f-lot').value = '';
+  document.getElementById('f-group').value = '';
+  document.getElementById('f-classification').value = '';
+  document.getElementById('ntrm-section').classList.add('hidden');
+  setNtrm('');
+  document.getElementById('delete-section').classList.add('hidden');
+  document.getElementById('drawer-error').classList.add('hidden');
+  document.getElementById('grower-results').classList.add('hidden');
+  document.getElementById('drawer').classList.add('open');
+  setTimeout(() => document.getElementById('f-ticket').focus(), 100);
+}
+
+function openEdit(r) {
+  document.getElementById('edit-id').value = r.id;
+  document.getElementById('drawer-title').textContent = 'Edit Rejection';
+  document.getElementById('f-date').value = r.date;
+  document.getElementById('f-floor').value = r.floor;
+  document.getElementById('f-grower-search').value = r.grower_number;
+  document.getElementById('f-grower-id').value = r.grower_number;
+  document.getElementById('f-grower-name').value = r.grower_name || '';
+  document.getElementById('f-ticket').value = r.ticket_number;
+  document.getElementById('f-lot').value = r.lot_number;
+  document.getElementById('f-group').value = r.group_number;
+  document.getElementById('f-classification').value = r.classification;
+  onClassificationChange();
+  if (r.ntrm_type) {
+    const btn = document.querySelector(`.ntrm-btn[data-ntrm="${r.ntrm_type}"]`);
+    if (btn) selectNtrm(btn); else setNtrm(r.ntrm_type);
+  }
+  document.getElementById('delete-section').classList.remove('hidden');
+  document.getElementById('drawer-error').classList.add('hidden');
+  document.getElementById('grower-results').classList.add('hidden');
+  document.getElementById('drawer').classList.add('open');
+}
+
+function closeDrawer() {
+  document.getElementById('drawer').classList.remove('open');
+}
+
+// ── Save ──
+async function saveBale() {
+  const editId = document.getElementById('edit-id').value;
+  const errEl = document.getElementById('drawer-error');
+  errEl.classList.add('hidden');
+
+  const growerSearch = document.getElementById('f-grower-search').value.trim();
+  const payload = {
+    date: document.getElementById('f-date').value,
+    floor: document.getElementById('f-floor').value,
+    grower_number: growerSearch,
+    grower_name: document.getElementById('f-grower-name').value.trim(),
+    ticket_number: document.getElementById('f-ticket').value.trim(),
+    lot_number: document.getElementById('f-lot').value.trim(),
+    group_number: document.getElementById('f-group').value.trim(),
+    classification: document.getElementById('f-classification').value,
+    ntrm_type: document.getElementById('f-ntrm-type').value || null,
+  };
+
+  if (!payload.date || !payload.floor || !payload.grower_number || !payload.ticket_number || !payload.lot_number || !payload.classification) {
+    errEl.textContent = 'Please fill in all required fields.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  try {
+    const method = editId ? 'PUT' : 'POST';
+    const url = editId ? `/rejected-bales/${editId}/` : '/rejected-bales/';
+    const res = await apiFetch(url, { method, body: JSON.stringify(payload) });
+    if (!res.ok) {
+      const err = await res.json();
+      errEl.textContent = JSON.stringify(err);
+      errEl.classList.remove('hidden');
+      return;
+    }
+    closeDrawer();
+    loadBales();
+  } catch (e) {
+    errEl.textContent = 'Network error. Please try again.';
+    errEl.classList.remove('hidden');
+  }
+}
+
+async function deleteBale() {
+  const editId = document.getElementById('edit-id').value;
+  if (!editId || !confirm('Delete this rejection record?')) return;
+  await apiFetch(`/rejected-bales/${editId}/`, { method: 'DELETE' });
+  closeDrawer();
+  loadBales();
+}
+
+// ── Default to today ──
+(function () {
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('filter-from').value = today;
+  document.getElementById('filter-to').value = today;
+  filters.date_from = today;
+  filters.date_to = today;
+})();
+
+loadReferenceData().then(() => loadBales());
+</script>
+{% endblock %}

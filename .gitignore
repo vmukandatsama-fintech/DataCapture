@@ -5,13 +5,15 @@ venv/
 .env
 
 # Byte-compiled / optimized / DLL files
-__pycache__/
+**/__pycache__/
 *.py[cod]
 *$py.class
 
 # Django stuff:
 *.log
 db.sqlite3
+staticfiles/
+config/local_settings.py
 
 # VS Code settings
 .vscode/

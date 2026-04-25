@@ -76,8 +76,12 @@
     <div class="flex items-center gap-3" id="nav-user-area">
       <span class="text-sm text-gray-400 hidden sm:inline" id="nav-username"></span>
       <span class="text-xs border border-gray-700 rounded px-2 py-1 text-gray-400 capitalize hidden sm:inline" id="nav-role"></span>
-      <a href="/admin/" id="nav-admin-link"
-        class="hidden min-h-touch px-4 flex items-center text-sm text-gray-300 hover:text-white border border-gray-700 hover:border-gray-500 rounded-lg transition">
+      <a href="/dashboard/"
+        class="min-h-touch px-4 flex items-center text-sm text-gray-300 hover:text-white border border-gray-700 hover:border-gray-500 rounded-lg transition">
+        Home
+      </a>
+      <a href="/admin/"
+        class="min-h-touch px-4 flex items-center text-sm text-gray-300 hover:text-white border border-gray-700 hover:border-gray-500 rounded-lg transition">
         Admin
       </a>
       <button onclick="logout()" id="nav-logout"
@@ -111,11 +115,9 @@
         const usernameEl = document.getElementById('nav-username');
         const roleEl = document.getElementById('nav-role');
         const logoutBtn = document.getElementById('nav-logout');
-        const adminLink = document.getElementById('nav-admin-link');
         if (usernameEl) usernameEl.textContent = user.username;
         if (roleEl) roleEl.textContent = user.role;
         if (logoutBtn) logoutBtn.classList.remove('hidden');
-        if (adminLink && user.role === 'admin') adminLink.classList.remove('hidden');
       } catch (_) {}
     }
 

@@ -9,13 +9,20 @@ from unfold.admin import ModelAdmin as UnfoldModelAdmin
 import csv
 import re
 
-from .models import User, Grower
-from .forms import UserImportForm, GrowerImportForm
+from .models import User, Grower, Floor, RejectionClassification, RejectedBale, ReleaseFromHold
+from .forms import UserImportForm, GrowerImportForm, AdminUserCreationForm
 
 
 @admin.register(User)
 class CustomUserAdmin(UnfoldModelAdmin, UserAdmin):
     model = User
+    add_form = AdminUserCreationForm
+
+    add_fieldsets = (
+        (None, {
+            "fields": ("username", "role", "pin", "pin_confirm", "is_staff", "must_change_pin"),
+        }),
+    )
 
     fieldsets = UserAdmin.fieldsets + (
         ("DataCapture Fields", {
@@ -24,6 +31,13 @@ class CustomUserAdmin(UnfoldModelAdmin, UserAdmin):
     )
 
     list_display = ("username", "role", "must_change_pin", "is_staff")
+
+    def save_model(self, request, obj, form, change):
+        if not change and isinstance(form, AdminUserCreationForm):
+            # PIN already hashed by AdminUserCreationForm.save(); bypass UserAdmin password logic
+            obj.save()
+        else:
+            super().save_model(request, obj, form, change)
 
     # URL for import
     def get_urls(self):
@@ -324,3 +338,35 @@ class GrowerAdmin(UnfoldModelAdmin):
         extra_context = extra_context or {}
         extra_context['import_url'] = 'import-growers/'
         return super().changelist_view(request, extra_context=extra_context)
+
+
+@admin.register(Floor)
+class FloorAdmin(UnfoldModelAdmin):
+    list_display = ('name', 'location')
+    search_fields = ('name', 'location')
+    ordering = ('name',)
+
+
+@admin.register(RejectionClassification)
+class RejectionClassificationAdmin(UnfoldModelAdmin):
+    list_display = ('code', 'description')
+    search_fields = ('code', 'description')
+    ordering = ('code',)
+
+
+@admin.register(ReleaseFromHold)
+class ReleaseFromHoldAdmin(UnfoldModelAdmin):
+    list_display = ('resolution_date', 'ticket_number', 'resolution', 'reference', 'floor', 'created_by')
+    list_filter = ('resolution_date', 'resolution', 'floor')
+    search_fields = ('ticket_number', 'reference')
+    ordering = ('-resolution_date',)
+    date_hierarchy = 'resolution_date'
+
+
+@admin.register(RejectedBale)
+class RejectedBaleAdmin(UnfoldModelAdmin):
+    list_display = ('date', 'floor', 'grower_number', 'grower_name', 'ticket_number', 'lot_number', 'group_number', 'classification', 'created_by')
+    list_filter = ('date', 'floor', 'classification')
+    search_fields = ('grower_number', 'grower_name', 'ticket_number')
+    ordering = ('-date',)
+    date_hierarchy = 'date'

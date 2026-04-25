@@ -94,7 +94,22 @@
 
 {% block scripts %}
 <script>
-  if (localStorage.getItem('dc_token')) window.location.href = '/dashboard/';
+  (function () {
+    const token = localStorage.getItem('dc_token');
+    if (!token) return;
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      if (payload.exp * 1000 > Date.now()) {
+        window.location.href = '/dashboard/';
+      } else {
+        localStorage.removeItem('dc_token');
+        localStorage.removeItem('dc_user');
+      }
+    } catch (_) {
+      localStorage.removeItem('dc_token');
+      localStorage.removeItem('dc_user');
+    }
+  })();
 
   let pin = '';
   const MAX = 6;

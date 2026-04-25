@@ -48,6 +48,18 @@ def grower_detail(request, grower_id):
     return render(request, 'growers/detail.html', _ctx())
 
 
+def truck_deliveries_page(request):
+    return render(request, 'trucks/list.html', _ctx())
+
+
+def rejected_bales_page(request):
+    return render(request, 'rejected_bales/list.html', _ctx())
+
+
+def releases_page(request):
+    return render(request, 'releases/list.html', _ctx())
+
+
 urlpatterns = [
     path('', home, name='home'),
     path('login/', login_page, name='login'),
@@ -55,6 +67,9 @@ urlpatterns = [
     path('dashboard/', dashboard, name='dashboard'),
     path('growers/', growers_list, name='growers'),
     path('growers/<str:grower_id>/', grower_detail, name='grower-detail'),
+    path('trucks/', truck_deliveries_page, name='trucks'),
+    path('rejected-bales/', rejected_bales_page, name='rejected-bales'),
+    path('releases/', releases_page, name='releases'),
     path('admin/', admin.site.urls),
     path('api/accounts/', include('accounts.urls')),
 ]

@@ -88,7 +88,18 @@
 
 {% block scripts %}
 <script>
-  const token = localStorage.getItem('dc_token');
+  function getValidToken() {
+    const t = localStorage.getItem('dc_token');
+    if (!t) return null;
+    try {
+      const payload = JSON.parse(atob(t.split('.')[1]));
+      if (payload.exp * 1000 > Date.now()) return t;
+    } catch (_) {}
+    localStorage.removeItem('dc_token');
+    localStorage.removeItem('dc_user');
+    return null;
+  }
+  const token = getValidToken();
   if (!token) window.location.href = '/login/';
 
   const tbody = document.getElementById('grower-tbody');
@@ -127,7 +138,12 @@
       const res = await fetch(`/api/accounts/growers/?${params}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (res.status === 401) { window.location.href = '/login/'; return; }
+      if (res.status === 401) {
+        localStorage.removeItem('dc_token');
+        localStorage.removeItem('dc_user');
+        window.location.href = '/login/';
+        return;
+      }
 
       const data = await res.json();
       const results = data.results ?? [];
