@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(venv/Scripts/python manage.py makemigrations accounts)",
+      "Bash(venv/Scripts/python manage.py migrate)",
+      "Bash(venv/Scripts/python manage.py check)",
+      "Bash(venv/Scripts/python manage.py migrate --verbosity=2)",
+      "Bash(venv/Scripts/python manage.py shell -c \"from accounts.models import Floor, RejectionClassification; print\\('Floors:', Floor.objects.count\\(\\)\\); print\\('Classifications:', RejectionClassification.objects.count\\(\\)\\)\")",
+      "Bash(venv/Scripts/python manage.py shell -c ' *)",
+      "Bash(python -c \"from accounts.forms import AdminUserCreationForm; print\\('OK', AdminUserCreationForm._meta.model\\)\")"
+    ]
+  }
+}
