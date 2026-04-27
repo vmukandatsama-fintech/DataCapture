@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}Rejected Bales Lifecycle Report{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+  <h1 class="text-2xl font-semibold mb-1">Rejected Bales Lifecycle Report</h1>
+  <p class="text-sm text-gray-500 dark:text-gray-400">
+    Traces rejected bales through to their final resolution — Released to Grower, ReOffered, or still Pending.
+  </p>
+</div>
+
+<!-- Filter card -->
+<div class="card mb-6">
+  <div class="p-6">
+    <h2 class="text-base font-semibold mb-4">Filters</h2>
+    <form method="get">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+
+        <div>
+          <label class="block text-sm font-medium mb-1" for="date_from">Rejection Date From</label>
+          <input type="date" name="date_from" id="date_from" value="{{ date_from }}"
+                 class="border border-base-200 dark:border-base-700 rounded px-3 py-2 text-sm w-full
+                        bg-white dark:bg-base-900 text-base-900 dark:text-base-100 focus:outline-none focus:ring-1 focus:ring-primary-500">
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium mb-1" for="date_to">Rejection Date To</label>
+          <input type="date" name="date_to" id="date_to" value="{{ date_to }}"
+                 class="border border-base-200 dark:border-base-700 rounded px-3 py-2 text-sm w-full
+                        bg-white dark:bg-base-900 text-base-900 dark:text-base-100 focus:outline-none focus:ring-1 focus:ring-primary-500">
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium mb-1" for="floor">Floor</label>
+          <select name="floor" id="floor"
+                  class="border border-base-200 dark:border-base-700 rounded px-3 py-2 text-sm w-full
+                         bg-white dark:bg-base-900 text-base-900 dark:text-base-100 focus:outline-none focus:ring-1 focus:ring-primary-500">
+            <option value="">All Floors</option>
+            {% for f in floors %}
+            <option value="{{ f.id }}" {% if floor_id == f.id|stringformat:"s" %}selected{% endif %}>{{ f.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium mb-1" for="resolution">Status</label>
+          <select name="resolution" id="resolution"
+                  class="border border-base-200 dark:border-base-700 rounded px-3 py-2 text-sm w-full
+                         bg-white dark:bg-base-900 text-base-900 dark:text-base-100 focus:outline-none focus:ring-1 focus:ring-primary-500">
+            <option value="">All Statuses</option>
+            <option value="Pending" {% if resolution_filter == "Pending" %}selected{% endif %}>Pending</option>
+            <option value="Release to Grower" {% if resolution_filter == "Release to Grower" %}selected{% endif %}>Release to Grower</option>
+            <option value="ReOffer" {% if resolution_filter == "ReOffer" %}selected{% endif %}>ReOffer</option>
+          </select>
+        </div>
+
+      </div>
+
+      <div class="flex flex-wrap items-center gap-3 mt-5">
+        <button type="submit" name="format" value="preview" class="button">Preview</button>
+        {% if has_results %}
+        <a href="?date_from={{ date_from }}&date_to={{ date_to }}&floor={{ floor_id }}&resolution={{ resolution_filter }}&format=csv"
+           class="button">Export CSV</a>
+        <a href="?date_from={{ date_from }}&date_to={{ date_to }}&floor={{ floor_id }}&resolution={{ resolution_filter }}&format=xlsx"
+           class="button">Export Excel</a>
+        {% endif %}
+        <a href="?" class="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 ml-auto">Clear filters</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% if has_results %}
+
+<!-- Summary bar -->
+<div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+  <p class="text-sm text-gray-500 dark:text-gray-400">
+    {% if total_count == 0 %}
+      No records match the selected filters.
+    {% elif total_count > rows|length %}
+      Showing first {{ rows|length }} of <strong>{{ total_count }}</strong> records. Export to see all.
+    {% else %}
+      <strong>{{ total_count }}</strong> record{{ total_count|pluralize }} found.
+    {% endif %}
+  </p>
+  {% if total_count > 0 %}
+  <div class="flex gap-2">
+    <a href="?date_from={{ date_from }}&date_to={{ date_to }}&floor={{ floor_id }}&resolution={{ resolution_filter }}&format=csv"
+       class="button">Export CSV</a>
+    <a href="?date_from={{ date_from }}&date_to={{ date_to }}&floor={{ floor_id }}&resolution={{ resolution_filter }}&format=xlsx"
+       class="button">Export Excel</a>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Preview table -->
+{% if rows %}
+<div class="card">
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+          <th class="text-left py-2 px-3 font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">Rejection Date</th>
+          <th class="text-left py-2 px-3 font-medium text-gray-500 dark:text-gray-400">Floor</th>
+          <th class="text-left py-2 px-3 font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">Grower #</th>
+          <th class="text-left py-2 px-3 font-medium text-gray-500 dark:text-gray-400">Grower Name</th>
+          <th class="text-left py-2 px-3 font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">Ticket #</th>
+          <th class="text-left py-2 px-3 font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">Lot</th>
+          <th class="text-left py-2 px-3 font-medium text-gray-500 dark:text-gray-400">Classification</th>
+          <th class="text-left py-2 px-3 font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">NTRM Type</th>
+          <th class="text-left py-2 px-3 font-medium text-gray-500 dark:text-gray-400">Status</th>
+          <th class="text-left py-2 px-3 font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">Resolution Date</th>
+          <th class="text-left py-2 px-3 font-medium text-gray-500 dark:text-gray-400">Reference</th>
+          <th class="text-left py-2 px-3 font-medium text-gray-500 dark:text-gray-400 whitespace-nowrap">Resolved By</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+        {% for row in rows %}
+        <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/40">
+          <td class="py-2 px-3 whitespace-nowrap">{{ row.rejection_date }}</td>
+          <td class="py-2 px-3 whitespace-nowrap">{{ row.floor }}</td>
+          <td class="py-2 px-3 font-mono text-xs whitespace-nowrap">{{ row.grower_number }}</td>
+          <td class="py-2 px-3">{{ row.grower_name }}</td>
+          <td class="py-2 px-3 font-mono text-xs whitespace-nowrap">{{ row.ticket_number }}</td>
+          <td class="py-2 px-3 font-mono text-xs">{{ row.lot_number }}</td>
+          <td class="py-2 px-3 whitespace-nowrap">{{ row.classification }}</td>
+          <td class="py-2 px-3 whitespace-nowrap">{{ row.ntrm_type }}</td>
+          <td class="py-2 px-3 whitespace-nowrap">
+            {% if row.status == "Pending" %}
+              <span class="inline-block text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 rounded-full px-2 py-0.5">Pending</span>
+            {% elif row.status == "Release to Grower" %}
+              <span class="inline-block text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded-full px-2 py-0.5">Released</span>
+            {% elif row.status == "ReOffer" %}
+              <span class="inline-block text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded-full px-2 py-0.5">ReOffer</span>
+            {% endif %}
+          </td>
+          <td class="py-2 px-3 whitespace-nowrap">{{ row.resolution_date }}</td>
+          <td class="py-2 px-3">{{ row.reference }}</td>
+          <td class="py-2 px-3 whitespace-nowrap">{{ row.resolved_by }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% endif %}
+{% endblock %}

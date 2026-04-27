@@ -221,6 +221,17 @@ UNFOLD = {
                     },
                 ],
             },
+            {
+                "title": "Reports",
+                "separator": True,
+                "items": [
+                    {
+                        "title": "Rejected Bales Lifecycle",
+                        "icon": "analytics",
+                        "link": "/admin/accounts/rejectedbale/lifecycle-report/",
+                    },
+                ],
+            },
         ],
     },
 }

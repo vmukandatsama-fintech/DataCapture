@@ -5,8 +5,10 @@ from django.shortcuts import render, redirect
 from django.contrib import messages
 from django.contrib.auth.hashers import make_password
 from django.db import transaction
+from django.http import HttpResponse
 from unfold.admin import ModelAdmin as UnfoldModelAdmin
 import csv
+import io
 import re
 
 from .models import User, Grower, Floor, RejectionClassification, RejectedBale, ReleaseFromHold
@@ -370,3 +372,198 @@ class RejectedBaleAdmin(UnfoldModelAdmin):
     search_fields = ('grower_number', 'grower_name', 'ticket_number')
     ordering = ('-date',)
     date_hierarchy = 'date'
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                'lifecycle-report/',
+                self.admin_site.admin_view(self.lifecycle_report),
+                name='reports_rejected_bales_lifecycle',
+            ),
+        ]
+        return custom_urls + urls
+
+    # ── Report view ───────────────────────────────────────────────────────────
+
+    def lifecycle_report(self, request):
+        date_from = request.GET.get('date_from', '')
+        date_to = request.GET.get('date_to', '')
+        floor_id = request.GET.get('floor', '')
+        resolution_filter = request.GET.get('resolution', '')
+        fmt = request.GET.get('format', '')
+
+        floors = Floor.objects.order_by('name')
+
+        if fmt in ('csv', 'xlsx', 'preview'):
+            rows = self._get_lifecycle_rows(date_from, date_to, floor_id, resolution_filter)
+
+            if fmt == 'csv':
+                return self._export_csv(rows, date_from, date_to)
+            if fmt == 'xlsx':
+                return self._export_xlsx(rows, date_from, date_to)
+
+            # preview
+            context = {
+                'floors': floors,
+                'date_from': date_from,
+                'date_to': date_to,
+                'floor_id': floor_id,
+                'resolution_filter': resolution_filter,
+                'rows': rows[:100],
+                'total_count': len(rows),
+                'has_results': True,
+            }
+        else:
+            context = {
+                'floors': floors,
+                'date_from': date_from,
+                'date_to': date_to,
+                'floor_id': floor_id,
+                'resolution_filter': resolution_filter,
+                'has_results': False,
+            }
+
+        return render(request, 'admin/reports/rejected_bales_lifecycle.html', context)
+
+    # ── Data helper ───────────────────────────────────────────────────────────
+
+    def _get_lifecycle_rows(self, date_from, date_to, floor_id, resolution_filter):
+        from django.db.models import Prefetch
+
+        release_qs = ReleaseFromHold.objects.select_related('created_by').order_by('resolution_date')
+
+        qs = RejectedBale.objects.select_related(
+            'floor', 'classification', 'created_by'
+        ).prefetch_related(
+            Prefetch('releases', queryset=release_qs)
+        ).order_by('-date', 'ticket_number')
+
+        if date_from:
+            qs = qs.filter(date__gte=date_from)
+        if date_to:
+            qs = qs.filter(date__lte=date_to)
+        if floor_id:
+            qs = qs.filter(floor_id=floor_id)
+
+        rows = []
+        for bale in qs:
+            base = {
+                'rejection_date': bale.date,
+                'floor': bale.floor.name if bale.floor else '',
+                'grower_number': bale.grower_number,
+                'grower_name': bale.grower_name,
+                'ticket_number': bale.ticket_number,
+                'lot_number': bale.lot_number,
+                'group_number': bale.group_number,
+                'classification': bale.classification.code if bale.classification else '',
+                'ntrm_type': bale.ntrm_type or '',
+                'captured_by': bale.created_by.username if bale.created_by else '',
+            }
+            releases = list(bale.releases.all())
+            if releases:
+                for rel in releases:
+                    status = rel.resolution
+                    if resolution_filter and status != resolution_filter:
+                        continue
+                    rows.append({**base,
+                        'status': status,
+                        'resolution_date': rel.resolution_date,
+                        'reference': rel.reference or '',
+                        'resolved_by': rel.created_by.username if rel.created_by else '',
+                    })
+            else:
+                if resolution_filter and resolution_filter != 'Pending':
+                    continue
+                rows.append({**base,
+                    'status': 'Pending',
+                    'resolution_date': '',
+                    'reference': '',
+                    'resolved_by': '',
+                })
+
+        return rows
+
+    # ── CSV export ────────────────────────────────────────────────────────────
+
+    _REPORT_HEADERS = [
+        'Rejection Date', 'Floor', 'Grower Number', 'Grower Name',
+        'Ticket Number', 'Lot Number', 'Group Number', 'Classification',
+        'NTRM Type', 'Captured By', 'Status', 'Resolution Date',
+        'Reference', 'Resolved By',
+    ]
+
+    @staticmethod
+    def _row_values(row):
+        return [
+            row['rejection_date'], row['floor'], row['grower_number'],
+            row['grower_name'], row['ticket_number'], row['lot_number'],
+            row['group_number'], row['classification'], row['ntrm_type'],
+            row['captured_by'], row['status'], row['resolution_date'],
+            row['reference'], row['resolved_by'],
+        ]
+
+    def _export_csv(self, rows, date_from, date_to):
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(self._REPORT_HEADERS)
+        for row in rows:
+            writer.writerow(self._row_values(row))
+
+        suffix = f"{date_from or 'all'}_{date_to or 'all'}"
+        response = HttpResponse(buf.getvalue(), content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="rejected_bales_lifecycle_{suffix}.csv"'
+        return response
+
+    # ── Excel export ──────────────────────────────────────────────────────────
+
+    def _export_xlsx(self, rows, date_from, date_to):
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = 'Lifecycle'
+
+        header_fill = PatternFill(start_color='157D3D', end_color='157D3D', fill_type='solid')
+        header_font = Font(bold=True, color='FFFFFF')
+
+        for col, header in enumerate(self._REPORT_HEADERS, 1):
+            cell = ws.cell(row=1, column=col, value=header)
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal='center')
+
+        STATUS_COLORS = {
+            'Pending': 'B45309',
+            'Release to Grower': '166534',
+            'ReOffer': '1D4ED8',
+        }
+
+        for r, row in enumerate(rows, 2):
+            values = self._row_values(row)
+            for c, val in enumerate(values, 1):
+                cell = ws.cell(row=r, column=c, value=str(val) if val else '')
+            # Colour the Status column (col 11)
+            status_cell = ws.cell(row=r, column=11)
+            color = STATUS_COLORS.get(row['status'])
+            if color:
+                status_cell.font = Font(bold=True, color=color)
+
+        col_widths = [14, 16, 14, 24, 16, 10, 13, 16, 18, 16, 20, 16, 26, 16]
+        for col, width in enumerate(col_widths, 1):
+            ws.column_dimensions[ws.cell(row=1, column=col).column_letter].width = width
+
+        ws.freeze_panes = 'A2'
+
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+
+        suffix = f"{date_from or 'all'}_{date_to or 'all'}"
+        response = HttpResponse(
+            buf.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
+        response['Content-Disposition'] = f'attachment; filename="rejected_bales_lifecycle_{suffix}.xlsx"'
+        return response
